@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Recall — study coach</title>
+    <meta
+      name="description"
+      content="A spaced-repetition study coach built on the Cloudflare Agents SDK."
+    />
+    <link rel="stylesheet" href="./styles.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>"
+    />
+  </head>
+  <body>
+    <div class="app" id="app">
+      <header>
+        <div class="brand">
+          <span class="dot"></span>
+          Recall
+          <small>study coach</small>
+        </div>
+        <div class="header-right">
+          <span class="badge" id="memory-badge">memory</span>
+          <span class="badge" id="status">connecting…</span>
+        </div>
+      </header>
+
+      <main class="chat" id="chat">
+        <div class="empty" id="empty">
+          <h2>What shall we study?</h2>
+          <p>
+            Teach me what you want to learn and I'll turn it into flashcards,
+            then quiz you on them later — without being asked.
+          </p>
+          <div class="suggestions">
+            <button data-prompt="Teach me about Cloudflare Durable Objects">
+              Teach me about Cloudflare Durable Objects
+            </button>
+            <button data-prompt="Build me a deck on the CAP theorem">
+              Build me a deck on the CAP theorem
+            </button>
+            <button data-prompt="Explain how spaced repetition actually works">
+              Explain how spaced repetition actually works
+            </button>
+          </div>
+        </div>
+      </main>
+
+      <aside class="side">
+        <section>
+          <h3>Progress</h3>
+          <div class="stats">
+            <div class="stat">
+              <div class="n" id="stat-cards">0</div>
+              <div class="k">cards</div>
+            </div>
+            <div class="stat due">
+              <div class="n" id="stat-due">0</div>
+              <div class="k">due now</div>
+            </div>
+            <div class="stat">
+              <div class="n" id="stat-reviews">0</div>
+              <div class="k">reviews</div>
+            </div>
+            <div class="stat">
+              <div class="n" id="stat-streak">0</div>
+              <div class="k">day streak</div>
+            </div>
+          </div>
+          <div class="meter" title="Mean progress toward the 21-day interval">
+            <i id="mastery-bar" style="width: 0%"></i>
+          </div>
+          <p class="muted-note" style="margin-top: 6px">
+            <span id="mastery-label">0%</span> mastered
+          </p>
+        </section>
+
+        <section id="workflow-section" hidden>
+          <h3>Deck build</h3>
+          <div class="workflow" id="workflow">
+            <span class="label" id="workflow-label">Starting…</span>
+            <div class="meter"><i id="workflow-bar" style="width: 0%"></i></div>
+          </div>
+        </section>
+
+        <section>
+          <h3>Decks</h3>
+          <div id="decks">
+            <p class="muted-note">No cards yet.</p>
+          </div>
+        </section>
+
+        <footer>
+          <button class="linkish" id="reset">Reset this learner</button>
+        </footer>
+      </aside>
+
+      <div class="composer">
+        <div class="review-bar">
+          <strong>Reviewing</strong>
+          <span id="review-deck"></span>
+          <span class="spacer"></span>
+          <button class="linkish" id="reveal">Show answer</button>
+          <button class="linkish" id="skip">Skip</button>
+        </div>
+        <div class="input-row">
+          <textarea
+            id="input"
+            rows="1"
+            placeholder="Ask me to teach you something…"
+            autocomplete="off"
+          ></textarea>
+          <button class="icon" id="mic" title="Hold to speak" aria-label="Record voice">
+            🎙
+          </button>
+          <button class="send" id="send">Send</button>
+        </div>
+        <p class="hint" id="hint"></p>
+      </div>
+    </div>
+
+    <script type="module" src="./app.ts"></script>
+  </body>
+</html>
