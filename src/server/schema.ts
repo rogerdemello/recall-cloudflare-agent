@@ -76,6 +76,14 @@ export interface NewCard {
  * Safe to call on every Durable Object wake — all statements are
  * `IF NOT EXISTS`. The Agents SDK owns its own `cf_agents_*` tables in the same
  * database; these names are distinct from those.
+ *
+ * **Nothing in these statements may be interpolated.** `host.sql` is a tagged
+ * template, so any `${...}` becomes a bound `?` parameter — and SQLite accepts
+ * bound parameters in DML but not in DDL. That includes interpolation inside a
+ * SQL comment, which is still substituted by the template and then invisible to
+ * the parser, producing a binding with no placeholder to fill. The `ease`
+ * default below is therefore the literal 2.5; `insertCard` writes `DEFAULT_EASE`
+ * explicitly, so the constant in sm2.ts stays the real source of truth.
  */
 export function migrate(host: SqlHost): void {
   host.sql`
@@ -85,7 +93,7 @@ export function migrate(host: SqlHost): void {
       question         TEXT    NOT NULL,
       answer           TEXT    NOT NULL,
       source           TEXT    NOT NULL DEFAULT 'chat',
-      ease             REAL    NOT NULL DEFAULT ${DEFAULT_EASE},
+      ease             REAL    NOT NULL DEFAULT 2.5,
       interval_days    REAL    NOT NULL DEFAULT 0,
       repetitions      INTEGER NOT NULL DEFAULT 0,
       due_at           INTEGER NOT NULL,
@@ -158,10 +166,10 @@ export function insertCard(
 
   const id = crypto.randomUUID();
   host.sql`
-    INSERT INTO cards (id, deck, question, answer, source, due_at, created_at)
+    INSERT INTO cards (id, deck, question, answer, source, ease, due_at, created_at)
     VALUES (
       ${id}, ${card.deck}, ${card.question}, ${card.answer},
-      ${card.source ?? "chat"}, ${now}, ${now}
+      ${card.source ?? "chat"}, ${DEFAULT_EASE}, ${now}, ${now}
     )
   `;
   return id;

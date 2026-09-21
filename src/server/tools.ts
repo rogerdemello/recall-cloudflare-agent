@@ -4,13 +4,19 @@
  * Two deliberate constraints shape this file:
  *
  *  - **Few and flat.** Llama 3.3 is a capable tool-caller but not a frontier
- *    model. Five tools with shallow argument shapes get called correctly far
- *    more often than fifteen with nested unions.
- *  - **Nothing correctness-critical lives here.** Grading a learner's answer
- *    never becomes a tool call, because that would make the scheduling maths
- *    depend on the model choosing to invoke a function at the right moment.
- *    Grading is routed in code (see `agent.ts`); tools only ever do things
- *    where a missed call is a mild inconvenience.
+ *    model. Four tools with shallow argument shapes get called correctly far
+ *    more often than a dozen with nested unions.
+ *  - **Nothing correctness-critical lives here.** A tool call is a
+ *    *probabilistic* branch, so anything whose absence would break the product
+ *    is routed in code instead. Two things qualify: grading a learner's answer,
+ *    and mining the conversation for flashcards. Both live in `agent.ts`.
+ *
+ * Card mining used to be an `add_cards` tool. It was removed after testing
+ * against live Workers AI showed Llama 3.3 reliably produces *either* prose
+ * *or* a tool call in a step, almost never both — so "explain the concept, then
+ * silently save cards" simply never fired. It is now a separate extraction pass
+ * after the turn, which is both more reliable and one less thing for the model
+ * to forget.
  */
 
 import { tool } from "ai";
@@ -48,41 +54,6 @@ export interface ToolHost {
 
 export function buildTools(host: ToolHost) {
   return {
-    add_cards: tool({
-      description:
-        "Save flashcards from what you just taught. Call this after explaining " +
-        "something substantive, without being asked and without announcing it. " +
-        "Write questions that test understanding, not recall of your phrasing.",
-      inputSchema: z.object({
-        deck: z
-          .string()
-          .describe("Short topic name, lowercase, e.g. 'durable objects'"),
-        cards: z
-          .array(
-            z.object({
-              question: z.string().describe("A single clear question"),
-              answer: z.string().describe("A complete answer, 1-3 sentences"),
-            }),
-          )
-          .min(1)
-          .max(8)
-          .describe("Between 1 and 8 cards"),
-      }),
-      execute: async ({ deck, cards }) => {
-        host.announceTool("add_cards", `Saving ${cards.length} cards to "${deck}"`);
-        const saved = await host.saveCards(deck, cards, "chat");
-        const skipped = cards.length - saved;
-        return {
-          saved,
-          skipped,
-          note:
-            skipped > 0
-              ? `${skipped} were already covered by existing cards and were skipped.`
-              : "All cards were new.",
-        };
-      },
-    }),
-
     search_memory: tool({
       description:
         "Search everything this learner has studied before, by meaning rather " +

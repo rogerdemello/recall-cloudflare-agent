@@ -59,24 +59,78 @@ separate aggregation path. Nothing in this product wants that.
 
 ---
 
-## 3. Grading is routed in code, not exposed as a tool
+## 3. Nothing load-bearing is a tool call
 
-**Context.** Everything else the agent does is a tool call. Grading could have been
-`grade_answer({card_id, grade, feedback})`.
+**Context.** Everything the agent does could have been a tool. Grading could have been
+`grade_answer({card_id, grade, feedback})`; card mining started life as `add_cards`.
 
-**Decision.** When `state.activeReview` is set, the next message is intercepted before the
-chat path and graded by a dedicated call. The model never sees it as conversation.
+**Decision.** Both are routed in code. Grading fires when `state.activeReview` is set;
+card mining is a separate extraction pass after the reply. Tools are left with four jobs
+where a missed call is a mild inconvenience.
 
-**Why.** A tool call is a *probabilistic* branch. When the model forgot to call it, the
+**Why, for grading.** A tool call is a *probabilistic* branch. When the model forgot, the
 answer would be treated as ordinary chat, the review would never close, and the card's
 schedule would silently stall. Routing on state makes the path unconditional.
 
-The general rule, applied throughout: **a tool may be missed, so nothing whose absence
-corrupts data may be a tool.** Saving cards is a fine tool — forgetting costs one turn's
-cards. Grading is not.
+**Why, for card mining — and this one was learned the hard way.** `add_cards` was built as
+a tool with an emphatic system-prompt instruction to call it after every explanation.
+Against live Workers AI it essentially never fired. Llama 3.3 produces prose *or* a tool
+call in a given step and almost never both, so a tool placed *after* an explanation is a
+tool that never gets reached. Verification showed clean streaming replies and zero cards,
+turn after turn.
 
-**Cost.** One fewer thing the model controls, and a branch in `handleUserText` that must
-be kept correct.
+Moving it to a dedicated extraction call fixed it immediately and permanently: it now
+runs every turn, because nothing has to decide to run it.
+
+The rule this leaves: **a tool may be missed, so nothing whose absence breaks the product
+may be a tool.**
+
+**Cost.** One extra inference per turn, and a branch in `handleUserText` that must be kept
+correct. The extra call runs *after* the reply is delivered, so it costs the learner no
+latency.
+
+---
+
+## 3b. A turn is two model calls, because the provider's streaming is broken
+
+**Context.** The natural shape is one `streamText` call with tools attached — stream the
+reply, let the model call tools as it goes.
+
+**Decision.** Tools run on `generateText`; the visible reply streams on `streamText` with
+no tools attached.
+
+**Why.** `workers-ai-provider@4.0.0` reads each Workers AI SSE chunk twice — the native
+`chunk.response` field and the OpenAI-compatible `chunk.choices[0].delta.content` — and
+emits both. Every delta is doubled:
+
+```
+generateText → "Durable Objects are stateful."                      correct
+streamText   → ["D","D","urable Objects are","urable Objects are",
+                " stateful"," stateful",".","."]                    doubled
+```
+
+Prose was recoverable — the duplication is exact adjacent pairs, so middleware pairs it
+back down. Tool arguments were not:
+
+```json
+{"query": "{"query": "CloudCloudflareflare D Durableurable Objects"} Objects"}
+```
+
+The provider assembles tool arguments internally, before any part reaches the stream, so
+middleware never gets a chance. That JSON never parses, the tool never executes, and the
+loop spins through its entire step budget producing nothing — observed as five identical
+steps with zero text.
+
+`generateText` is unaffected, which is what localised the fault to `doStream`. 4.0.0 is
+the latest release; there is no upstream fix to take.
+
+**Cost.** One extra call per turn, under a second, before streaming begins. The
+alternative — dropping to `generateText` for everything — would have cost real
+time-to-first-token on every reply.
+
+**Reversal.** Delete `stream-dedupe.ts` and collapse `runActions` back into `respond`
+once the provider is fixed. The reproduction is preserved in that file's header so the
+decision can be re-evaluated rather than cargo-culted.
 
 ---
 
@@ -96,7 +150,10 @@ It also degrades predictably. `parseGradeResponse` falls back to grade 3 — the
 passing grade — because a parse failure is a bug in *this* code and recording it as a lapse
 would destroy a repetition chain the learner earned.
 
-All three parsers are pure functions with 28 unit tests between them.
+The parsers are pure functions with 38 unit tests between them. One of those tests earned
+its keep immediately: the markdown normaliser stripped list bullets before bold markers,
+so a line like `**A:** ...` lost an asterisk to the bullet rule and no longer matched the
+answer label — silently dropping the card. Caught on the first run.
 
 **Cost.** Hand-written parsers instead of a schema. Cheap, and the tests make the
 behaviour explicit rather than implicit in a library.
@@ -128,6 +185,10 @@ same reason.
 
 **Cost.** Three layers to keep coherent, and Vectorize needs provisioning. Mitigated by
 `MEMORY_MODE="sql"`, which disables the vector layer and keeps everything else working.
+
+The dedup is not theoretical: a verified deck build on the CAP theorem generated 20 cards
+across 5 subtopics and Vectorize rejected 1 as a near-duplicate of a card written moments
+earlier in the same run.
 
 ---
 

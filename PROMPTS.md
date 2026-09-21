@@ -78,16 +78,64 @@ The approved plan is reproduced at the end of this file.
 
 ---
 
+## 3 — Set up the Cloudflare tooling
+
+> done, logged in
+> Fetch and execute the appropriate instructions to set me up for Cloudflare from
+> https://developers.cloudflare.com/agent-setup/prompt.md
+
+Installed the `cloudflare/skills` marketplace and plugin. Then the remaining Cloudflare
+account setup: creating the Vectorize index, and registering a `workers.dev` subdomain
+(no `wrangler subdomain` command exists and the docs expose no API for it, so this had to
+be done in the dashboard).
+
+---
+
 ## Notable moments during implementation
 
-Worth recording, since "AI-assisted" shouldn't imply "unexamined".
+Worth recording, since "AI-assisted" shouldn't imply "unexamined". Every one of these was
+found by running the thing, not by reading the code.
 
-**A real bug the tests caught.** `parsing.ts` normalises model output by stripping markdown
-and list bullets. The first version stripped bullets before bold markers, so a line like
-`**A:** The answer` had one asterisk eaten by the bullet rule, leaving `*A:` — which then
-failed to match the answer label and silently dropped the card. A unit test written
-alongside the parser failed immediately; the fix was reordering two lines. The comment
-explaining the ordering is still in the file.
+**A DDL bug from an interpolated constant.** `CREATE TABLE ... ease REAL NOT NULL DEFAULT
+${DEFAULT_EASE}` — `this.sql` is a tagged template, so that became a bound `?` parameter,
+which SQLite rejects in DDL. `onStart` threw, no tables existed, and every downstream
+check failed. The fix exposed a second, better trap: the *explanatory comment* added above
+the fix also contained `${DEFAULT_EASE}`, and a comment inside a template literal is still
+interpolated — so it injected a binding with no placeholder and the error merely changed.
+
+**A parser bug the tests caught.** `parsing.ts` stripped list bullets before bold markers,
+so `**A:** The answer` lost one asterisk to the bullet rule, leaving `*A:` — which no
+longer matched the answer label, silently dropping the card. A unit test written alongside
+the parser failed on the first run.
+
+**A provider bug that reshaped the architecture.** `workers-ai-provider@4.0.0` reads each
+Workers AI SSE chunk twice and emits both copies, so every stream delta is doubled. Found
+by noticing the reply read `CloudCloudflareflare D Durableurable Objects`. Narrowed with a
+minimal reproduction (`generateText` clean, `streamText` doubled → fault is in `doStream`),
+then traced to two unguarded branches in the provider source.
+
+Prose turned out to be repairable via `wrapLanguageModel` middleware. Tool arguments did
+not — the provider assembles them internally before anything reaches the stream, so they
+surface as unparseable JSON, the tool never executes, and the agent loop burns all five
+steps emitting nothing. That is why a turn is now two model calls.
+
+**A design assumption that live testing disproved.** `add_cards` was built as a tool with
+an emphatic instruction to call it after every explanation. It essentially never fired:
+Llama 3.3 emits prose *or* a tool call in a step, almost never both. Verification showed
+clean replies and zero cards, repeatedly. Moving card mining to a dedicated extraction
+pass fixed it permanently — and made it consistent with the project's existing rule that
+nothing load-bearing should be a tool call.
+
+**Two binding details that cost real time.** Vectorize needs `"remote": true` in
+`wrangler.jsonc` (no local emulator — otherwise every call fails with *"needs to be run
+remotely"*), and `returnMetadata` must be the string `"all"`, not `true`, despite the
+TypeScript type permitting a boolean.
+
+**A test that was wrong, not the code.** The harness asserted "a good answer passed", but
+it sends one fixed answer whatever card comes up — so when the agent asked "What *are*
+Durable Objects?" and got an answer about concurrency, grading it 2/5 was the model being
+right. Replaced with the assertion that actually holds: the pass flag must agree with
+SM-2's threshold of 3.
 
 **Four typecheck failures, each a genuine design signal.**
 
@@ -114,13 +162,29 @@ failure granularity — reasoning in `docs/DECISIONS.md` §3 and §4.
 
 ## Verification actually run
 
-Not claimed, run:
+Not claimed — run, with the output checked:
 
-- `npm test` — 51 unit tests across `sm2.ts`, `grading.ts`, `parsing.ts`
+- `npm test` — 75 unit tests across `sm2.ts`, `grading.ts`, `parsing.ts`, `stream-dedupe.ts`
 - `npx tsc -p tsconfig.worker.json --noEmit` — clean
 - `npx tsc -p tsconfig.client.json --noEmit` — clean
 - `npx vite build` — clean, 86 kB client bundle (26 kB gzipped)
-- End-to-end against live Workers AI — see the checklist in [`docs/DEMO.md`](docs/DEMO.md)
+- `npm run verify -- recall-agent.rogerdemello.workers.dev` — **18/18** against the
+  deployed Worker: streaming, unprompted card mining, state replication, the scheduled
+  quiz arriving with no request behind it, SM-2 grading, semantic recall, transcript
+  replay across a reconnect
+- `npm run verify:workflow` — **5/5**: the DeckBuilder Workflow planned 5 subtopics,
+  reported step-by-step progress, and saved 19 cards with 1 semantic duplicate rejected
+
+Both harnesses are committed under `scripts/` so the claims are reproducible rather than
+asserted.
+
+### Verified honestly — what is *not* covered
+
+- **Voice input.** The `/api/transcribe` endpoint and the Whisper wiring are in place, but
+  the microphone path needs a real browser with a real microphone. It has not been
+  exercised by an automated harness, and is not counted among the 18 passing checks.
+- **AI Gateway.** Supported via `AI_GATEWAY_ID` and off by default, so the gateway
+  dashboard has not been exercised either.
 
 ---
 

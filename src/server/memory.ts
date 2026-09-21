@@ -138,10 +138,13 @@ export async function recall(
   const [vector] = await embedTexts(env, [query]);
   if (!vector) return [];
 
+  // "all", not `true`. The binding's TypeScript type permits a boolean, but the
+  // Vectorize v2 API rejects it at the wire level with
+  // VECTOR_QUERY_ERROR 40026 ("returnMetadata: expected value").
   const result = await env.MEMORY_INDEX.query(vector, {
     topK,
     namespace,
-    returnMetadata: true,
+    returnMetadata: "all",
   });
 
   return result.matches.map((match) => ({
@@ -186,10 +189,11 @@ export async function flagDuplicates(
       continue;
     }
 
+    // No `returnMetadata` at all — only the score matters here, and the v2 API
+    // rejects the boolean `false` the type signature suggests.
     const existing = await env.MEMORY_INDEX.query(vector, {
       topK: 1,
       namespace,
-      returnMetadata: false,
     });
     const topScore = existing.matches[0]?.score ?? 0;
     const dupOfIndexed = topScore >= DUPLICATE_THRESHOLD;

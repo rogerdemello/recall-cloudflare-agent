@@ -29,6 +29,7 @@ import {
   recall,
 } from "./memory";
 import { chatModel } from "./model";
+import { isNothingToSave, parseCards, parseDeckName } from "./parsing";
 import {
   applyReviewToCard,
   countCards,
@@ -78,10 +79,7 @@ How you teach:
 - Keep replies under 150 words unless asked to go deeper.
 - Ask what they want to learn if they are vague, but only once — then pick something and start.
 
-Saving cards:
-- After you explain anything substantive, call add_cards.
-- Do this silently. Never announce it, never ask permission, never list the cards back.
-- Write questions that test understanding, not recall of your exact wording.
+Flashcards are made from your explanations automatically, behind the scenes. Never mention them, never offer to make them, never list them back.
 
 Using memory:
 - If the learner refers to an earlier session, or asks what they have covered, call search_memory first. Never guess at what they have studied.
@@ -91,6 +89,19 @@ Deck building:
 - Only call build_deck when they explicitly ask for a deck, a course, or to study a broad topic from scratch. It runs in the background; mention it is underway and stop there.
 
 Never mention Durable Objects, Workers, SQLite, workflows or any other implementation detail of how you work. You are a tutor, not a system.`;
+
+/**
+ * Prompt for the action pass. Narrow on purpose: this call decides whether to
+ * look something up, and nothing else. Any prose it produces is discarded.
+ */
+const ACTION_PROMPT = `You decide whether anything needs looking up before a tutor answers the learner. You are not the tutor and your words are never shown.
+
+- search_memory — the learner asks what they have covered, refers to an earlier session, or asks about a topic they may already have cards on.
+- build_deck — ONLY when they explicitly ask for a deck, a course, or to study a broad topic from scratch.
+- quiz_me — they ask to be tested, quizzed or reviewed.
+- get_progress — they ask how they are doing, or about streaks, mastery or counts.
+
+Most messages need none of these. If nothing applies, call nothing and reply with the single word NONE.`;
 
 export class StudyCoach extends Agent<Env, CoachState> implements ToolHost {
   initialState: CoachState = INITIAL_COACH_STATE;
@@ -202,25 +213,54 @@ export class StudyCoach extends Agent<Env, CoachState> implements ToolHost {
       return;
     }
 
-    await this.respond();
+    await this.respond(trimmed);
   }
 
-  /** Stream one assistant turn, running the tool loop as it goes. */
-  private async respond(): Promise<void> {
+  /**
+   * Produce one assistant turn, in two passes.
+   *
+   * **Why two.** `workers-ai-provider@4.0.0` double-emits every stream delta.
+   * Middleware repairs the prose (see `stream-dedupe.ts`), but tool-call
+   * arguments are accumulated *inside* the provider before any part reaches the
+   * stream, so they arrive already corrupted — malformed JSON, the tool never
+   * executes, and the loop burns its whole step budget producing nothing. The
+   * non-streaming path is unaffected.
+   *
+   * So: tools run through `generateText`, where they work, and the visible
+   * reply streams through `streamText` without tools, where it is clean. The
+   * action pass costs well under a second and its findings are handed to the
+   * reply pass as context.
+   */
+  private async respond(userText: string): Promise<void> {
     const id = crypto.randomUUID();
     this.setState({ ...this.state, thinking: true });
+
+    // Pass 1 — act. Any tools the model wants have already run by the time the
+    // learner sees the first token.
+    const findings = await this.runActions();
+
     this.emit({ type: "start", id });
+
+    const messages = buildHistory(this);
+    if (findings) {
+      messages.push({
+        role: "system",
+        content: `Results of lookups you just performed. Use them; do not mention that you performed them.\n${findings}`,
+      });
+    }
 
     let full = "";
     try {
+      // Pass 2 — stream the reply. No tools here, deliberately.
       const result = streamText({
         model: chatModel(this.env, this.sessionAffinity),
         system: SYSTEM_PROMPT,
-        messages: buildHistory(this),
-        tools: buildTools(this),
-        stopWhen: stepCountIs(MAX_STEPS),
+        messages,
       });
 
+      // The provider's delta double-emission is repaired by middleware inside
+      // chatModel(), so this stream is already clean — prose and tool arguments
+      // alike. See stream-dedupe.ts.
       for await (const delta of result.textStream) {
         full += delta;
         this.emit({ type: "token", id, delta });
@@ -245,8 +285,100 @@ export class StudyCoach extends Agent<Env, CoachState> implements ToolHost {
     this.emit({ type: "done", id, content: full });
     this.setState({ ...this.state, thinking: false });
 
+    // Mine the exchange for cards *after* the reply has been delivered, so the
+    // extra inference never delays what the learner is reading.
+    await this.mineCards(userText, full);
+
     await maybeSummarise(this.env, this, now);
     await this.scheduleNextReview();
+  }
+
+  /**
+   * Let the model use tools before the reply is written.
+   *
+   * Non-streaming because that is the only path where Workers AI tool arguments
+   * survive intact. Capped at two steps: this pass exists to look things up,
+   * not to hold a conversation.
+   *
+   * @returns a flat summary of what the tools returned, or "" if none ran.
+   */
+  private async runActions(): Promise<string> {
+    try {
+      const result = await generateText({
+        model: chatModel(this.env, this.sessionAffinity),
+        system: ACTION_PROMPT,
+        messages: buildHistory(this),
+        tools: buildTools(this),
+        stopWhen: stepCountIs(2),
+      });
+
+      const findings: string[] = [];
+      for (const step of result.steps) {
+        for (const toolResult of step.toolResults ?? []) {
+          const payload =
+            (toolResult as { output?: unknown }).output ??
+            (toolResult as { result?: unknown }).result;
+          findings.push(`${toolResult.toolName}: ${JSON.stringify(payload)}`);
+        }
+      }
+      return findings.join("\n");
+    } catch (error) {
+      // A failed lookup should cost context, not the whole turn.
+      console.error("action pass failed", error);
+      return "";
+    }
+  }
+
+  /**
+   * Turn the exchange that just happened into flashcards.
+   *
+   * Deliberately a separate model call rather than a tool the chat model may
+   * invoke. Testing against live Workers AI showed Llama 3.3 produces prose or
+   * a tool call in a given step and almost never both, so an `add_cards` tool
+   * placed after an explanation essentially never fired. Card mining is the
+   * whole product, so it cannot be left to a probabilistic branch.
+   *
+   * Uses the same line format and the same tested parser as the deck workflow.
+   */
+  private async mineCards(userText: string, reply: string): Promise<void> {
+    // Not worth an inference on a one-word exchange.
+    if (reply.trim().length < 120) return;
+
+    try {
+      const { text } = await generateText({
+        model: chatModel(this.env, this.sessionAffinity),
+        system:
+          "You extract flashcards from a tutoring exchange. Write cards only " +
+          "for durable facts the learner should be able to recall later — not " +
+          "pleasantries, not meta-conversation, not the tutor's phrasing.\n\n" +
+          "Output format, and nothing else:\n" +
+          "DECK: <short lowercase topic, two or three words>\n" +
+          "Q: <question>\n" +
+          "A: <answer, one or two sentences>\n" +
+          "...up to 5 cards.\n\n" +
+          "If the exchange contains nothing worth remembering, output exactly: NONE",
+        prompt: `LEARNER: ${userText}\n\nTUTOR: ${reply}`,
+      });
+
+      if (isNothingToSave(text)) return;
+
+      const cards = parseCards(text, 5);
+      if (cards.length === 0) return;
+
+      const deck = parseDeckName(text, "general");
+      const saved = await this.saveCards(deck, cards, "chat");
+
+      if (saved > 0) {
+        this.announceTool(
+          "add_cards",
+          `Saved ${saved} card${saved === 1 ? "" : "s"} to "${deck}"`,
+        );
+      }
+    } catch (error) {
+      // Losing one turn's cards is a small, self-correcting loss — the learner
+      // can cover the topic again. Never fail the turn over it.
+      console.error("card mining failed", error);
+    }
   }
 
   // -------------------------------------------------------------------------

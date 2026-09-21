@@ -2,6 +2,10 @@
 
 Roughly three minutes, and it shows all four assignment requirements working together.
 
+**Live: https://recall-agent.rogerdemello.workers.dev** — every step below has been run
+against it. If you'd rather not click through, `npm run verify -- recall-agent.rogerdemello.workers.dev`
+asserts the same behaviour programmatically (18 checks, last run all passing).
+
 ## Setup
 
 ```bash
@@ -28,10 +32,14 @@ checkable rather than just stated.
 Watch for:
 
 - The reply **streams** token by token.
-- A chip appears: `saving 4 cards to "durable objects"`. Nobody asked for that — the
-  model called `add_cards` on its own, and the system prompt told it to do so silently.
-- The sidebar updates: **cards 4**, a new deck row. That sidebar has no fetch calls in it;
+- A few seconds after it finishes, a chip appears:
+  `Saved 3 cards to "cloudflare durable objects"`. Nobody asked for that — an extraction
+  pass mined the exchange once the reply was delivered.
+- The sidebar updates: **cards 3**, a new deck row. That sidebar has no fetch calls in it;
   it is a pure function of the agent's synced state.
+
+The chip lags the reply by a moment on purpose: mining runs *after* the answer is on
+screen, so the extra inference never delays what you're reading.
 
 ## 2 · The agent comes back on its own
 
@@ -68,23 +76,26 @@ scheduling maths doesn't depend on the model choosing to call a tool at the righ
 
 > **Build me a deck on the CAP theorem**
 
-The sidebar shows a **Deck build** panel with a progress bar that actually advances:
+The sidebar shows a **Deck build** panel with a progress bar that actually advances.
+Verbatim from a verified run:
 
 ```
-Planned 5 subtopics
-Added 4 cards on "Consistency models"
-Added 4 cards on "Partition tolerance"
-...
-Added 17 cards (3 duplicates skipped)
+running  0/1 — Planning the deck
+running  1/6 — Planned 5 subtopics
+running  2/6 — Added 4 cards on "Consistency models"
+running  3/6 — Added 4 cards on "Availability definition"
+running  4/6 — Added 4 cards on "Partition tolerance"
+running  5/6 — Added 3 cards on "Distributed system tradeoffs"
+running  6/6 — Added 4 cards on "Theorem proof implications"
+complete 6/6 — Added 19 cards (1 duplicates skipped)
 ```
 
 Each subtopic is a separate durable `step.do`. A transient inference failure retries that
 step alone; a permanent one skips that subtopic and the deck still completes. The run
 survives the Durable Object being evicted mid-build.
 
-The "3 duplicates skipped" line is Vectorize doing real work — those cards were rejected
-at 0.92 cosine similarity against cards already indexed, including ones generated moments
-earlier in the same run.
+The "1 duplicates skipped" line is Vectorize doing real work — that card was rejected at
+0.92 cosine similarity against one written moments earlier in the same run.
 
 ## 5 · Memory that isn't keyword matching
 
@@ -125,9 +136,10 @@ all in one motion.
 
 | Claim | How to check |
 | --- | --- |
+| All of it, end to end | `npm run verify -- recall-agent.rogerdemello.workers.dev` — 18 assertions against the live Worker |
 | Nothing polls | `wrangler tail` — the review callback runs with no inbound request |
 | Reviews survive the tab closing | Close the tab during step 2, reopen after a minute — the question is waiting |
-| Workflow steps are independent | `wrangler tail` during step 4 — each `step.do` logs separately |
+| Workflow steps are independent | `npm run verify:workflow` — prints each step as it lands |
 | Vectorize is really running | Step 5 returns cards with no lexical overlap; the skipped-duplicate count in step 4 |
 | Learners are isolated | `?learner=` in step 7 |
 | SM-2 is correct | `npm test` — 23 tests, including the two subtleties most implementations get wrong |
@@ -141,5 +153,9 @@ all in one motion.
   provision one to run this.
 - **Context window** — 24k. The model sees a rolling summary plus the last ~12 turns, not
   the full transcript. `docs/ARCHITECTURE.md` has the detail.
-- **Tests** — `npm test` covers SM-2, grade parsing and card/outline parsing: the three
-  places where a silent bug would corrupt a schedule or drop generated cards.
+- **Tests** — `npm test` covers SM-2, grade parsing, card/outline parsing and the stream
+  repair: the places where a silent bug would corrupt a schedule, drop generated cards, or
+  ship doubled prose.
+- **Why a turn makes two model calls** — `workers-ai-provider@4.0.0` double-emits stream
+  deltas, which corrupts tool-call arguments beyond repair. Tools run non-streaming where
+  they work; prose streams where it's clean. Reproduction in `src/server/stream-dedupe.ts`.

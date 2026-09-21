@@ -29,7 +29,8 @@ are all filled by the Durable Object itself.
         │              messages, profile     │            │
         │  State       synced to clients     │            │
         │  Alarm       this.schedule()       │            │
-        │  Tools       5, via AI SDK         │            │
+        │  Tools       4, via AI SDK         │            │
+        │  Mining      post-turn extraction  │            │
         └───┬──────────────────┬─────────────┘            │
             │ runWorkflow      │ RPC (saveDeckCards)      │
             ▼                  │                          │
@@ -114,7 +115,8 @@ don't collide with them.
 
 ## Request paths
 
-**A chat turn.**
+**A chat turn.** Two model calls, then a third after the reply lands. The split is forced
+by a provider bug — see "Where the model is, and isn't" below.
 
 ```
 browser sends {type:"chat", text}
@@ -123,10 +125,18 @@ browser sends {type:"chat", text}
   → is a review open?  ── yes ─→ gradeActiveReview  (see below)
         │ no
         ▼
-    streamText(model, SYSTEM_PROMPT, buildHistory(), tools, stopWhen: 5 steps)
-      · each text delta      → broadcast {type:"token"}
-      · each tool invocation → tool.execute → broadcast {type:"tool"}
+  ACTION PASS   generateText(ACTION_PROMPT, buildHistory(), tools, 2 steps)
+      · tools execute here, where their arguments survive intact
+      · each invocation → broadcast {type:"tool"}
+      · prose discarded; only tool results are kept
+        ▼
+  REPLY PASS    streamText(SYSTEM_PROMPT, buildHistory() + findings)   no tools
+      · each text delta → broadcast {type:"token"}
   → insertMessage(assistant)
+        ▼
+  MINING PASS   generateText(extraction prompt)      -- after the reply is delivered
+      · parseCards / parseDeckName  →  saveCards()
+      · dedup via Vectorize, then SQLite + vector upsert
   → maybeSummarise()          -- only if the transcript crossed a threshold
   → scheduleNextReview()      -- point the alarm at the soonest due card
 ```
@@ -216,13 +226,45 @@ hit across turns.
 Where the model is deliberately *not* trusted:
 
 - **Grading** is routed in code, on `state.activeReview`, not by a tool.
+- **Card mining** is a dedicated extraction pass, not a tool. Llama 3.3 emits prose or a
+  tool call in a step and almost never both, so an `add_cards` tool placed after an
+  explanation never fired in practice.
 - **Grade extraction** uses a line format and a regex, not JSON mode. A truncated JSON
   object would lose a whole review; a malformed line loses nothing, because the parser
   falls back to a neutral passing grade rather than recording a lapse the learner didn't
   earn.
 - **Card and subtopic extraction** likewise. A malformed line costs one card, not twenty.
 
-All three parsers are pure functions with unit tests.
+All the parsers are pure functions with unit tests.
+
+### The provider bug that shapes the turn
+
+`workers-ai-provider@4.0.0` reads each Workers AI SSE chunk twice — once from the native
+`chunk.response` field and again from the OpenAI-compatible
+`chunk.choices[0].delta.content` — and emits both. Every delta arrives doubled.
+
+Prose is recoverable. The duplication is exact adjacent pairs, so a
+`wrapLanguageModel` middleware pairs them back down before anything downstream sees them
+(`stream-dedupe.ts`, 14 tests).
+
+Tool arguments are not. The provider accumulates them internally before any part reaches
+the stream, so what surfaces is already corrupt JSON that never parses — the tool never
+runs, and the loop exhausts its step budget emitting nothing.
+
+Hence the split: tools on `generateText` where they work, prose on `streamText` where it
+streams. `generateText` is unaffected throughout, which is what localised the fault to
+`doStream`.
+
+### Two binding details worth knowing
+
+Both cost real debugging time and are easy to hit again:
+
+- **Vectorize needs `"remote": true`** in `wrangler.jsonc`. It has no local emulator, so
+  without it every call from `wrangler dev` fails with *"Binding MEMORY_INDEX needs to be
+  run remotely"*. Workers AI is marked the same way, to make the dev-time usage explicit.
+- **`returnMetadata` must be `"all"`, not `true`.** The binding's TypeScript type permits
+  a boolean, but the Vectorize v2 API rejects it at the wire level with
+  `VECTOR_QUERY_ERROR 40026`. Where metadata isn't needed, the option is omitted entirely.
 
 ## Client
 

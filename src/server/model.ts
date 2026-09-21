@@ -12,7 +12,9 @@ import type {
   LanguageModel,
   TranscriptionModel,
 } from "ai";
+import { wrapLanguageModel } from "ai";
 import { createWorkersAI } from "workers-ai-provider";
+import { workersAiDoubleEmissionFix } from "./stream-dedupe";
 
 /**
  * Llama 3.3 70B, fp8-quantised for speed.
@@ -64,8 +66,15 @@ function provider(env: Env) {
 // types `streamText`, `embedMany` and `transcribe` accept anyway.
 
 export function chatModel(env: Env, sessionAffinity?: string): LanguageModel {
-  return provider(env).chat(CHAT_MODEL, {
-    ...(sessionAffinity ? { sessionAffinity } : {}),
+  // The middleware repairs a double-emission bug in workers-ai-provider@4.0.0
+  // that corrupts both streamed prose and tool-call arguments. See
+  // stream-dedupe.ts for the reproduction and why it has to sit here, at the
+  // model boundary, rather than at the call site.
+  return wrapLanguageModel({
+    model: provider(env).chat(CHAT_MODEL, {
+      ...(sessionAffinity ? { sessionAffinity } : {}),
+    }),
+    middleware: workersAiDoubleEmissionFix(),
   });
 }
 

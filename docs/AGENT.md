@@ -21,6 +21,11 @@ teach ──▶ mine cards ──▶ schedule ──▶ (time passes) ──▶ 
   └────────────────────────────────────────────────────────────────────────────┘
 ```
 
+Verified end to end against live Workers AI — 17 checks covering streaming, unprompted
+card mining, state replication, the scheduled quiz arriving with no request behind it,
+SM-2 grading, semantic recall and transcript replay across a reconnect; plus 5 more for
+the deck Workflow. See [DEMO.md](DEMO.md).
+
 Nothing in the browser drives the middle of that loop. The alarm fires whether or not the
 page is open; if it is, the question arrives immediately, and if not, it's waiting.
 
@@ -38,10 +43,8 @@ How you teach:
 - Ask what they want to learn if they are vague, but only once — then pick something
   and start.
 
-Saving cards:
-- After you explain anything substantive, call add_cards.
-- Do this silently. Never announce it, never ask permission, never list the cards back.
-- Write questions that test understanding, not recall of your exact wording.
+Flashcards are made from your explanations automatically, behind the scenes. Never
+mention them, never offer to make them, never list them back.
 
 Using memory:
 - If the learner refers to an earlier session, or asks what they have covered, call
@@ -65,7 +68,7 @@ the KV prefix cache can hit on the system prompt and tool schemas instead of re-
 them cold. Live numbers are available through `get_progress` when the model actually needs
 them.
 
-**"Do this silently."** Without that line, Llama 3.3 narrates: *"Great! I've saved 4
+**"Never mention them."** Without that line, Llama 3.3 narrates: *"Great! I've saved 4
 flashcards for you."* It makes the product feel like a form with extra steps. The cards
 appearing in the sidebar is the feedback; saying it out loud is noise.
 
@@ -73,22 +76,57 @@ appearing in the sidebar is the feedback; saying it out loud is noise.
 especially when the subject matter is Cloudflare. Without an explicit prohibition, asking
 Recall to teach you about Durable Objects produces a reply about how *it* is built.
 
+## A turn is two model calls
+
+This is forced by a provider bug, and it is worth understanding because it shapes
+everything else.
+
+`workers-ai-provider@4.0.0` reads each Workers AI SSE chunk twice — once from the native
+`response` field and again from the OpenAI-compatible `choices[0].delta.content` — and
+emits both. Every delta arrives doubled. Reproduced against live Workers AI:
+
+```
+generateText → "Durable Objects are stateful."                      correct
+streamText   → ["D","D","urable Objects are","urable Objects are",
+                " stateful"," stateful",".","."]                    doubled
+```
+
+Prose is recoverable: the duplication is exact adjacent pairs, so middleware pairs them
+back down (`stream-dedupe.ts`, 14 tests). **Tool arguments are not.** The provider
+accumulates them internally before any part reaches the stream, so what surfaces is
+already corrupt:
+
+```json
+{"query": "{"query": "CloudCloudflareflare D Durableurable Objects"} Objects"}
+```
+
+That JSON never parses, so the tool never runs, the step ends with
+`finish-reason: tool-calls`, and the loop burns its entire step budget emitting nothing.
+Observed directly: five identical steps, zero text.
+
+So each turn runs:
+
+1. **Action pass** — `generateText` with tools, capped at 2 steps. Tools work correctly on
+   the non-streaming path. Any prose it produces is discarded.
+2. **Reply pass** — `streamText` with *no* tools, with the action pass's findings injected
+   as a system message. Clean streaming text.
+
+The action pass costs well under a second, so the learner still sees tokens promptly.
+
 ## Tools
 
-Five, all in `src/server/tools.ts`. Bound by two rules.
+Four, all in `src/server/tools.ts`, and none of them load-bearing.
 
-**Few and flat.** Llama 3.3 is a capable tool-caller but not frontier-grade. Five tools
-with shallow arguments get invoked correctly far more often than fifteen with nested
-unions. `add_cards` has the only nested shape in the set, and it's a flat array of
-`{question, answer}`.
+**Few and flat.** Llama 3.3 is a capable tool-caller but not frontier-grade. Four tools
+with shallow arguments get invoked correctly far more often than a dozen with nested
+unions.
 
-**Nothing correctness-critical.** A tool is allowed to be missed. If the model forgets to
-call `add_cards`, the learner loses some cards from one turn — recoverable, low stakes.
-Anything where a missed call would corrupt data is not a tool.
+**Nothing correctness-critical.** A tool call is a probabilistic branch. If the model
+forgets `search_memory`, the reply is a little less informed — recoverable, low stakes.
+Anything whose absence breaks the product is routed in code instead.
 
 | Tool | Arguments | Notes |
 | --- | --- | --- |
-| `add_cards` | `deck`, `cards[{question, answer}]` (1–8) | The main one. Semantic dedup runs on save, so the model re-teaching a topic doesn't duplicate the deck. Returns saved/skipped counts so it can see when it's repeating itself. |
 | `search_memory` | `query` | Semantic recall over everything studied. Returns `{found: 0}` rather than an empty list when nothing matches, because an empty array invited confabulation. |
 | `build_deck` | `topic`, `card_count` (5–40) | Starts the Workflow, returns immediately. The result explicitly tells the model *not* to list cards itself — otherwise it invents a plausible deck while the real one is still generating. |
 | `quiz_me` | — | Pulls the most overdue card. The result says the question has already been shown, to stop the model repeating it in prose. |
@@ -99,7 +137,30 @@ That's there because tool *results* are a more reliable place to put situational
 instructions than the system prompt — they arrive adjacent to the decision point rather
 than 800 tokens earlier.
 
-The loop is capped at `stopWhen: stepCountIs(5)`.
+## Card mining
+
+The core feature, and deliberately **not** a tool.
+
+It began as an `add_cards` tool the model was told to call after each explanation. Against
+live Workers AI it essentially never fired: Llama 3.3 produces prose *or* a tool call in a
+given step and almost never both, so a tool placed after an explanation is a tool that
+never gets reached.
+
+Instead, once the reply has been delivered, a separate extraction call runs over the
+exchange:
+
+```
+DECK: <short lowercase topic>
+Q: <question>
+A: <answer>
+```
+
+…or the single word `NONE` when nothing is worth remembering. Same line format and the
+same tested parser as the deck workflow. It runs *after* the reply is sent, so the extra
+inference never delays what the learner is reading, and a failure is swallowed — losing
+one turn's cards is self-correcting, since they can cover the topic again.
+
+Exchanges under 120 characters are skipped without an inference.
 
 ## Grading
 
@@ -221,7 +282,9 @@ An empty outline throws, so the step retries rather than "succeeding" with no pl
 | Failure | Behaviour |
 | --- | --- |
 | Generation throws mid-turn | Partial text kept, apologetic line appended, turn closes cleanly. Never a stuck spinner. |
-| Turn produces only tool calls, no text | Emits "Done." rather than an empty bubble. |
+| Action pass fails | Logged, findings dropped, the reply still streams — a failed lookup costs context, not the turn. |
+| Card mining fails | Logged and swallowed. One turn's cards are lost; the learner can cover the topic again. |
+| Turn produces no text | Emits "Done." rather than an empty bubble. |
 | Grading call fails | Grade 3, honest feedback, card rescheduled soon. No lapse recorded. |
 | Grade unparseable | Grade 3. Same reasoning. |
 | Summarisation fails | Logged and skipped. The verbatim window still carries context; retried at the next threshold. |

@@ -1,5 +1,7 @@
 # Recall
 
+**Live: https://recall-agent.rogerdemello.workers.dev**
+
 A spaced-repetition study coach that teaches you something, quietly turns it into
 flashcards, and then **wakes itself up later to test you on them**.
 
@@ -8,18 +10,21 @@ their own Durable Object, which holds their conversation, their cards, their rev
 schedule, and their streak — and which can run on its own clock whether or not anyone
 has the page open.
 
+Transcript from an actual verification run:
+
 ```
-You    ▸ Teach me about Durable Objects
-Recall ▸ [explains, with an example]
-         · saving 4 cards to "durable objects"          ← you never asked it to
+You    ▸ Teach me about Cloudflare Durable Objects
+Recall ▸ Let's start with the basics. A Durable Object in Cloudflare is
+         essentially a small, isolated piece of code that can store and
+         manage data. Imagine a simple counter…
+         · Saved 3 cards to "cloudflare durable objects"   ← you never asked
 
   … 45 seconds pass, nobody types anything …
 
-Recall ▸ REVIEW · durable objects
-         What guarantees does a Durable Object give you about concurrency?
+Recall ▸ REVIEW · cloudflare durable objects
+         What is a Durable Object in Cloudflare?
 You    ▸ only one instance runs at a time, so no races
-Recall ▸ That's the core of it.
-         grade 4/5 · next in 6 days
+Recall ▸ grade 3/5 · next in 1 day
 ```
 
 ---
@@ -50,10 +55,37 @@ Open the printed URL. That's it — there are no API keys and no `.env` file.
 everything else works unchanged.
 
 ```bash
-npm test          # 51 unit tests — SM-2, grade parsing, LLM output parsing
+npm test          # 75 unit tests — SM-2, grade parsing, LLM output parsing, stream repair
 npm run typecheck # both tsconfigs: worker and browser
-npm run deploy    # build + wrangler deploy
+npm run deploy    # build + deploy
 ```
+
+### Verifying it for yourself
+
+Unit tests only cover the pure logic. The agent loop is checked by two harnesses that
+drive it over a real WebSocket, exactly as the browser does, and assert on what comes
+back — including waiting for the scheduled quiz to arrive with no request behind it.
+
+```bash
+npm run verify -- 5173                                   # against wrangler dev
+npm run verify -- recall-agent.rogerdemello.workers.dev  # against production
+npm run verify:workflow -- 5173                          # the DeckBuilder Workflow
+```
+
+Last run against the live deployment: **18/18** and **5/5**.
+
+```
+PASS  Cards mined from the conversation unprompted — Saved 3 cards to "cloudflare durable"
+PASS  Agent pushed a quiz unprompted — "What is a Durable Object in Cloudflare?"
+PASS  Pass flag agrees with the SM-2 threshold — grade=4, passed=true
+PASS  Model used search_memory — 1 call(s)
+PASS  Transcript replayed on reconnect — 8 messages
+...
+PASS  Workflow completed — Added 19 cards (1 duplicates skipped)
+```
+
+The harnesses take a few minutes: they wait out the real review schedule rather than
+mocking the clock.
 
 ## Seeing it work
 
@@ -97,9 +129,9 @@ Vectorize .... 768-dim cosine index, namespaced per learner
 Detail in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md); the agent's own design — system
 prompt, tool contracts, memory model, the SM-2 maths — in [`docs/AGENT.md`](docs/AGENT.md).
 
-## Two decisions worth reading
+## Three decisions worth reading
 
-Both are argued properly in [`docs/DECISIONS.md`](docs/DECISIONS.md).
+All argued properly in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
 **Workers AI over an external LLM.** The brief allowed any LLM, and NVIDIA NIM was
 considered. Workers AI won on three counts: it needs no API key, so this repo is
@@ -108,33 +140,45 @@ egress latency; and NIM is not an AI Gateway provider, so routing it through the
 for caching and logs was not possible. `src/server/model.ts` is the single swap point if
 that judgement should ever change.
 
-**Grading is not a tool call.** When a review is open, the next message is intercepted and
-graded in code before the model ever sees it as chat. Letting the LLM decide *when* to
-grade would make the learner's scheduling data depend on the model having a good turn.
-Tools are only used for things where a missed call is a mild inconvenience.
+**Nothing load-bearing is a tool call.** A tool call is a *probabilistic* branch, so the
+two things the product cannot work without — grading a review and mining cards out of the
+conversation — are routed in code instead. Card mining started life as an `add_cards`
+tool; testing against live Workers AI showed Llama 3.3 emits prose *or* a tool call in a
+step and almost never both, so "explain the concept, then silently save cards" never
+fired. It is now a separate extraction pass and works every time.
+
+**A turn is two model calls, because of a provider bug.**
+`workers-ai-provider@4.0.0` double-emits every stream delta. That garbles prose, and worse,
+it corrupts tool-call arguments into unparseable JSON so tools never execute. Prose is
+repaired by middleware; tool arguments cannot be, because the provider assembles them
+internally before anything reaches the stream. So tools run through `generateText` (where
+they work) and the visible reply streams through `streamText` (where it's clean). Full
+reproduction in [`src/server/stream-dedupe.ts`](src/server/stream-dedupe.ts).
 
 ## Layout
 
 ```
 src/server/
   index.ts           Worker entry — routing + /api/transcribe
-  agent.ts           StudyCoach: the agent loop, review loop, tool host
+  agent.ts           StudyCoach: the agent loop, review loop, card mining
   deck-workflow.ts   DeckBuilder: durable multi-step deck generation
-  tools.ts           the five tools the model can call
+  tools.ts           the four tools the model can call
   memory.ts          Vectorize + rolling summary + context assembly
   schema.ts          SQLite schema and every query
   sm2.ts             spaced repetition — pure, no I/O
   grading.ts         parsing a grade out of model prose
-  parsing.ts         parsing subtopics and cards out of model prose
+  parsing.ts         parsing subtopics, decks and cards out of model prose
+  stream-dedupe.ts   middleware repairing the provider's double-emitted deltas
   model.ts           the one place the LLM is chosen
 src/client/          index.html + app.ts + voice.ts + styles.css
 src/shared/          the wire protocol, compiled into both sides
-test/                51 tests over the pure logic
+test/                75 tests over the pure logic
 ```
 
-`sm2.ts`, `grading.ts` and `parsing.ts` are pure and separately tested. That is deliberate:
-they hold the logic where a silent bug would corrupt a learner's schedule or quietly drop
-generated cards, and none of it needs a Worker runtime to verify.
+`sm2.ts`, `grading.ts`, `parsing.ts` and `stream-dedupe.ts` are pure and separately
+tested. That is deliberate: they hold the logic where a silent bug would corrupt a
+learner's schedule, quietly drop generated cards, or ship doubled prose — and none of it
+needs a Worker runtime to verify.
 
 ## Prompt history
 

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { parseCards, parseSubtopics } from "../src/server/parsing";
+import {
+  isNothingToSave,
+  parseCards,
+  parseDeckName,
+  parseSubtopics,
+} from "../src/server/parsing";
 
 describe("parseSubtopics", () => {
   it("reads a numbered list", () => {
@@ -116,5 +121,55 @@ describe("parseCards", () => {
       expect(card.question.length).toBeGreaterThan(0);
       expect(card.answer.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("parseDeckName", () => {
+  it("reads the DECK header", () => {
+    expect(parseDeckName("DECK: durable objects\nQ: x?\nA: y.")).toBe(
+      "durable objects",
+    );
+  });
+
+  it("lowercases and strips trailing punctuation", () => {
+    expect(parseDeckName("DECK: Durable Objects.")).toBe("durable objects");
+  });
+
+  it("tolerates bolding the model adds", () => {
+    expect(parseDeckName("**DECK:** CAP theorem")).toBe("cap theorem");
+  });
+
+  it("falls back when the header is missing", () => {
+    expect(parseDeckName("Q: x?\nA: y.", "general")).toBe("general");
+  });
+
+  it("rejects a whole sentence pretending to be a deck name", () => {
+    const sentence =
+      "DECK: this is a very long explanation of what the deck covers in detail";
+    expect(parseDeckName(sentence, "general")).toBe("general");
+  });
+
+  it("ignores an empty deck label", () => {
+    expect(parseDeckName("DECK:\nQ: x?\nA: y.", "general")).toBe("general");
+  });
+});
+
+describe("isNothingToSave", () => {
+  it("detects a bare NONE", () => {
+    expect(isNothingToSave("NONE")).toBe(true);
+    expect(isNothingToSave("  none  ")).toBe(true);
+    expect(isNothingToSave("NONE.")).toBe(true);
+  });
+
+  it("detects NONE followed by stray commentary", () => {
+    expect(isNothingToSave("NONE\nNothing worth saving here.")).toBe(true);
+  });
+
+  it("does not fire on a real card set", () => {
+    expect(isNothingToSave("DECK: x\nQ: a?\nA: b.")).toBe(false);
+  });
+
+  it("does not fire on prose that merely contains the word", () => {
+    expect(isNothingToSave("There are none of those in this topic.")).toBe(false);
   });
 });

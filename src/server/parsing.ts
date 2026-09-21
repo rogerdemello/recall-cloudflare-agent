@@ -13,6 +13,35 @@ export interface ParsedCard {
 }
 
 /**
+ * Pull the `DECK:` label out of a card-extraction response.
+ *
+ * Returns `fallback` when the line is missing or unusable, so a deck always has
+ * a name even when the model skips the header.
+ */
+export function parseDeckName(raw: string, fallback = "general"): string {
+  for (const line of raw.split("\n")) {
+    const match = clean(line).match(/^DECK\s*[:.\-]\s*(.+)$/i);
+    if (!match?.[1]) continue;
+
+    const name = match[1].trim().toLowerCase().replace(/[."']+$/, "");
+    // Guard against the model putting a whole sentence here.
+    if (name.length >= 2 && name.length <= 48) return name;
+  }
+  return fallback;
+}
+
+/**
+ * Whether the extractor decided the exchange held nothing worth remembering.
+ *
+ * Checked before parsing cards so a bare "NONE" isn't mistaken for malformed
+ * output and retried.
+ */
+export function isNothingToSave(raw: string): boolean {
+  const text = raw.trim().toUpperCase();
+  return text === "NONE" || text.startsWith("NONE\n") || text === "NONE.";
+}
+
+/**
  * Strip list bullets, numbering and stray markdown from a line.
  *
  * Order matters: bold markers come off *first*. A line like `**A:** ...` starts
