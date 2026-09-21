@@ -1,0 +1,336 @@
+docs/DEMO.md
+  s_d5d6c727d81aef::t_366f28316c9b61 1-145
+src/server/deck-workflow.ts
+  s_d5d6c727d81aef::t_455d7e6e622668 1-177
+src/server/agent.ts
+  s_d5d6c727d81aef::t_19db6ed56033ca 1-716
+vite.config.ts
+  s_d5d6c727d81aef::t_4334463c4ce187 9-12
+  s_d5d6c727d81aef::t_af0adb7849e7f8 1-8,13-20
+src/client/app.ts
+  s_d5d6c727d81aef::t_dfa2f41ec743c9 1-83,86-87,90-455
+  s_d5d6c727d81aef::t_b1cdc8cf5f9eae 84-85,88-89
+tsconfig.worker.json
+  s_d5d6c727d81aef::t_44f302a46027db 1-22,29
+  s_d5d6c727d81aef::t_ba340ddc278599 23-28
+src/server/grading.ts
+  s_d5d6c727d81aef::t_6d059a29b8d615 1-83
+docs/DECISIONS.md
+  s_d5d6c727d81aef::t_90ff23e22c6238 1-193
+src/server/schema.ts
+  s_d5d6c727d81aef::t_3c3e4687ac7816 1-393
+PROMPTS.md
+  s_d5d6c727d81aef::t_1f160536fcb10a 1-166
+src/client/voice.ts
+  s_d5d6c727d81aef::t_eea5efcdedd075 1-152
+src/server/sm2.ts
+  s_d5d6c727d81aef::t_db108e37ebcef1 1-106
+docs/ARCHITECTURE.md
+  s_d5d6c727d81aef::t_d6471c9a3d7baf 1-240
+tsconfig.json
+  s_d5d6c727d81aef::t_b89d58e8376676 1-7
+src/server/parsing.ts
+  s_d5d6c727d81aef::t_aa2983e64f83f9 1-14,23-26,29-109
+  s_d5d6c727d81aef::t_14ea01fdc3d093 15-22,27-28
+src/server/model.ts
+  s_d5d6c727d81aef::t_5c24e2c03a1ab4 1-9,15-60,67-71,73-75,77-89
+  s_d5d6c727d81aef::t_6a9ddf4fef0945 10-14
+  s_d5d6c727d81aef::t_da88f14ba20a59 61-66,72,76
+docs/AGENT.md
+  s_d5d6c727d81aef::t_4f92f785dc30c7 1-233
+src/client/styles.css
+  s_d5d6c727d81aef::t_458cfa69f4142e 1-614
+src/server/memory.ts
+  s_d5d6c727d81aef::t_4d213478a18e29 1-327
+src/client/index.html
+  s_d5d6c727d81aef::t_46c6732bbb4c6c 1-127
+src/shared/protocol.ts
+  s_d5d6c727d81aef::t_3e537000c8fe9c 1-118
+tsconfig.client.json
+  s_d5d6c727d81aef::t_866ff0f2c5d0ce 1-19
+src/server/tools.ts
+  s_d5d6c727d81aef::t_34b3eeb3ce6fd8 19-27
+  s_d5d6c727d81aef::t_d653bbc736b365 1-18,28-181
+README.md
+  s_d5d6c727d81aef::t_099ce401810467 1-145
+vitest.config.ts
+  s_d5d6c727d81aef::t_c148d6d98a741f 1-11
+.gitignore
+  s_d5d6c727d81aef::t_0dc9b84208919d 4
+  s_d5d6c727d81aef::t_602a293187a35a 1-3,5-10
+LICENSE
+  s_d5d6c727d81aef::t_f7bc766a22c710 1-21
+test/sm2.test.ts
+  s_d5d6c727d81aef::t_aab8421b897419 1-159
+worker-configuration.d.ts
+  s_d5d6c727d81aef::t_d2a3b46fa700f1 2,10-12,15-18,26
+  s_d5d6c727d81aef::t_fff982470dc0d2 1,3-9,13-14,19-25,27-15764
+test/parsing.test.ts
+  s_d5d6c727d81aef::t_5f3beb67fcff08 1-120
+test/grading.test.ts
+  s_d5d6c727d81aef::t_a54ea16210c85f 1-82
+package.json
+  s_d5d6c727d81aef::t_76fafe3627d9ae 24
+  s_d5d6c727d81aef::t_5b3bc53bde7c02 1-23,25-30
+src/server/index.ts
+  s_d5d6c727d81aef::t_d9143c8f42e66f 1-81
+wrangler.jsonc
+  s_d5d6c727d81aef::t_e14c2a67e96b56 64-69
+  s_d5d6c727d81aef::t_3658885db886c1 1-63,70-75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "autter_version": "1.6.9",
+  "base_commit_sha": "7f3086a9eb78eb27411a96b856e54dbc1077c660",
+  "branch": "main",
+  "prompts": {
+    "s_d5d6c727d81aef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "034234a2-7056-4b3d-8074-c60758922bb2",
+        "model": "claude-opus-5"
+      },
+      "human_author": "rogerdemello <rogerdemello289@gmail.com>",
+      "messages_url": "cas:19ce080a8e8d6558c3265f3c40443b05a9554a9e216dca3a1250233d24762e2a",
+      "total_additions": 21223,
+      "total_deletions": 24,
+      "accepted_lines": 21197,
+      "overriden_lines": 0
+    }
+  },
+  "sessions": {
+    "s_d5d6c727d81aef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "034234a2-7056-4b3d-8074-c60758922bb2",
+        "model": "claude-opus-5"
+      },
+      "human_author": "rogerdemello <rogerdemello289@gmail.com>",
+      "messages_url": "cas:19ce080a8e8d6558c3265f3c40443b05a9554a9e216dca3a1250233d24762e2a",
+      "stats": {
+        "total_additions": 21223,
+        "total_deletions": 24,
+        "accepted_lines": 21197,
+        "overriden_lines": 0,
+        "files": {
+          ".gitignore": {
+            "total_additions": 10,
+            "total_deletions": 0,
+            "accepted_lines": 10,
+            "overriden_lines": 0
+          },
+          "LICENSE": {
+            "total_additions": 21,
+            "total_deletions": 0,
+            "accepted_lines": 21,
+            "overriden_lines": 0
+          },
+          "PROMPTS.md": {
+            "total_additions": 166,
+            "total_deletions": 0,
+            "accepted_lines": 166,
+            "overriden_lines": 0
+          },
+          "README.md": {
+            "total_additions": 145,
+            "total_deletions": 0,
+            "accepted_lines": 145,
+            "overriden_lines": 0
+          },
+          "docs/AGENT.md": {
+            "total_additions": 233,
+            "total_deletions": 0,
+            "accepted_lines": 233,
+            "overriden_lines": 0
+          },
+          "docs/ARCHITECTURE.md": {
+            "total_additions": 240,
+            "total_deletions": 0,
+            "accepted_lines": 240,
+            "overriden_lines": 0
+          },
+          "docs/DECISIONS.md": {
+            "total_additions": 193,
+            "total_deletions": 0,
+            "accepted_lines": 193,
+            "overriden_lines": 0
+          },
+          "docs/DEMO.md": {
+            "total_additions": 145,
+            "total_deletions": 0,
+            "accepted_lines": 145,
+            "overriden_lines": 0
+          },
+          "package.json": {
+            "total_additions": 31,
+            "total_deletions": 1,
+            "accepted_lines": 30,
+            "overriden_lines": 0
+          },
+          "src/client/app.ts": {
+            "total_additions": 455,
+            "total_deletions": 0,
+            "accepted_lines": 455,
+            "overriden_lines": 0
+          },
+          "src/client/index.html": {
+            "total_additions": 127,
+            "total_deletions": 0,
+            "accepted_lines": 127,
+            "overriden_lines": 0
+          },
+          "src/client/styles.css": {
+            "total_additions": 614,
+            "total_deletions": 0,
+            "accepted_lines": 614,
+            "overriden_lines": 0
+          },
+          "src/client/voice.ts": {
+            "total_additions": 152,
+            "total_deletions": 0,
+            "accepted_lines": 152,
+            "overriden_lines": 0
+          },
+          "src/server/agent.ts": {
+            "total_additions": 716,
+            "total_deletions": 0,
+            "accepted_lines": 716,
+            "overriden_lines": 0
+          },
+          "src/server/deck-workflow.ts": {
+            "total_additions": 177,
+            "total_deletions": 0,
+            "accepted_lines": 177,
+            "overriden_lines": 0
+          },
+          "src/server/grading.ts": {
+            "total_additions": 83,
+            "total_deletions": 0,
+            "accepted_lines": 83,
+            "overriden_lines": 0
+          },
+          "src/server/index.ts": {
+            "total_additions": 81,
+            "total_deletions": 0,
+            "accepted_lines": 81,
+            "overriden_lines": 0
+          },
+          "src/server/memory.ts": {
+            "total_additions": 327,
+            "total_deletions": 0,
+            "accepted_lines": 327,
+            "overriden_lines": 0
+          },
+          "src/server/model.ts": {
+            "total_additions": 92,
+            "total_deletions": 3,
+            "accepted_lines": 89,
+            "overriden_lines": 0
+          },
+          "src/server/parsing.ts": {
+            "total_additions": 112,
+            "total_deletions": 3,
+            "accepted_lines": 109,
+            "overriden_lines": 0
+          },
+          "src/server/schema.ts": {
+            "total_additions": 393,
+            "total_deletions": 0,
+            "accepted_lines": 393,
+            "overriden_lines": 0
+          },
+          "src/server/sm2.ts": {
+            "total_additions": 106,
+            "total_deletions": 0,
+            "accepted_lines": 106,
+            "overriden_lines": 0
+          },
+          "src/server/tools.ts": {
+            "total_additions": 188,
+            "total_deletions": 7,
+            "accepted_lines": 181,
+            "overriden_lines": 0
+          },
+          "src/shared/protocol.ts": {
+            "total_additions": 118,
+            "total_deletions": 0,
+            "accepted_lines": 118,
+            "overriden_lines": 0
+          },
+          "test/grading.test.ts": {
+            "total_additions": 82,
+            "total_deletions": 0,
+            "accepted_lines": 82,
+            "overriden_lines": 0
+          },
+          "test/parsing.test.ts": {
+            "total_additions": 120,
+            "total_deletions": 0,
+            "accepted_lines": 120,
+            "overriden_lines": 0
+          },
+          "test/sm2.test.ts": {
+            "total_additions": 159,
+            "total_deletions": 0,
+            "accepted_lines": 159,
+            "overriden_lines": 0
+          },
+          "tsconfig.client.json": {
+            "total_additions": 19,
+            "total_deletions": 0,
+            "accepted_lines": 19,
+            "overriden_lines": 0
+          },
+          "tsconfig.client.tsbuildinfo": {
+            "total_additions": 2,
+            "total_deletions": 1,
+            "accepted_lines": 0,
+            "overriden_lines": 0
+          },
+          "tsconfig.json": {
+            "total_additions": 7,
+            "total_deletions": 0,
+            "accepted_lines": 7,
+            "overriden_lines": 0
+          },
+          "tsconfig.worker.json": {
+            "total_additions": 30,
+            "total_deletions": 1,
+            "accepted_lines": 29,
+            "overriden_lines": 0
+          },
+          "tsconfig.worker.tsbuildinfo": {
+            "total_additions": 3,
+            "total_deletions": 2,
+            "accepted_lines": 0,
+            "overriden_lines": 0
+          },
+          "vite.config.ts": {
+            "total_additions": 21,
+            "total_deletions": 1,
+            "accepted_lines": 20,
+            "overriden_lines": 0
+          },
+          "vitest.config.ts": {
+            "total_additions": 11,
+            "total_deletions": 0,
+            "accepted_lines": 11,
+            "overriden_lines": 0
+          },
+          "worker-configuration.d.ts": {
+            "total_additions": 15768,
+            "total_deletions": 4,
+            "accepted_lines": 15764,
+            "overriden_lines": 0
+          },
+          "wrangler.jsonc": {
+            "total_additions": 76,
+            "total_deletions": 1,
+            "accepted_lines": 75,
+            "overriden_lines": 0
+          }
+        }
+      }
+    }
+  }
+}
