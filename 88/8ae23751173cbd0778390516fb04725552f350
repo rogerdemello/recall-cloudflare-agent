@@ -1,0 +1,236 @@
+src/server/agent.ts
+  s_d5d6c727d81aef::t_116526d9ff1bf2 93-105
+  s_d5d6c727d81aef::t_a5a092647e2439 261-263
+  s_d5d6c727d81aef::t_a36e3123f20e90 219-233,237-241,244-251,254,258
+  s_d5d6c727d81aef::t_c40f51abe298f6 82
+  s_d5d6c727d81aef::t_7022b06c088698 216,234
+  s_d5d6c727d81aef::t_98ee7203fd3cb4 297-332
+  s_d5d6c727d81aef::t_3edb42ed1171a9 288-291,296,333-362,365-381
+  s_d5d6c727d81aef::t_9d90c5cb4b77cb 32
+  s_d5d6c727d81aef::t_8c96be066c5f7b 363
+  s_d5d6c727d81aef::t_a19195958a7f76 364
+docs/AGENT.md
+  s_d5d6c727d81aef::t_9e9c877bbd457c 79-115,118,120-122,124-126,140-163
+  s_d5d6c727d81aef::t_a5257e0031c3c8 46-47
+  s_d5d6c727d81aef::t_f81448af90acbb 71
+  s_d5d6c727d81aef::t_63317dfb105083 285-287
+  s_d5d6c727d81aef::t_f1b976823f5fd1 24-28
+docs/DECISIONS.md
+  s_d5d6c727d81aef::t_d68565236a6d33 62,64-65,67-69,71,75-80,82-133
+  s_d5d6c727d81aef::t_50d3978920d6a4 189-192
+  s_d5d6c727d81aef::t_10b621cde70e61 153-156
+src/server/parsing.ts
+  s_d5d6c727d81aef::t_28f9df54570d8e 16-43
+wrangler.jsonc
+  s_d5d6c727d81aef::t_b1b5f86e56aa3c 52-54,58-59
+  s_d5d6c727d81aef::t_54f53fc15120a6 15-17,19-20
+src/server/stream-dedupe.ts
+  s_d5d6c727d81aef::t_29ac1e1d38fd2e 7-8,18,20-30,32-41,43-44,46-47
+  s_d5d6c727d81aef::t_1ad2b634efa173 86-179
+  s_d5d6c727d81aef::t_1441fcb31a0731 1-6,9-17,19,31,42,45,48-85
+src/server/model.ts
+  s_d5d6c727d81aef::t_37131920ffbce1 15,17
+  s_d5d6c727d81aef::t_8ab561c46153f4 69-77
+docs/DEMO.md
+  s_d5d6c727d81aef::t_10247058b167ea 5-8
+  s_d5d6c727d81aef::t_97ad46d234c298 97-98
+  s_d5d6c727d81aef::t_900589356d6712 79-80,83-90
+  s_d5d6c727d81aef::t_5fff560cab1464 139,142
+  s_d5d6c727d81aef::t_f732e1cb43ef9e 156-161
+  s_d5d6c727d81aef::t_a26fef0c87f05d 35-38,41-42
+package.json
+  s_d5d6c727d81aef::t_c91a7e0a0fd17b 13-14
+  s_d5d6c727d81aef::t_1ae95d8101d7ab 10
+docs/ARCHITECTURE.md
+  s_d5d6c727d81aef::t_ea93a6071dbcd2 229-231,238-267
+  s_d5d6c727d81aef::t_75a8b5ea886bfa 32-33
+  s_d5d6c727d81aef::t_e72c3f613e9a96 118-119,128-134,136-139
+src/server/memory.ts
+  s_d5d6c727d81aef::t_17d02fe77cb6b6 192-193
+  s_d5d6c727d81aef::t_43d7b588e6b847 141-143,147
+PROMPTS.md
+  s_d5d6c727d81aef::t_3a7f3448f3ed65 81-90,92-94,96-138
+  s_d5d6c727d81aef::t_a5fd80b497128f 165,167,171-187
+src/server/tools.ts
+  s_d5d6c727d81aef::t_38bc8662fe2f32 7-19
+test/stream-dedupe.test.ts
+  s_d5d6c727d81aef::t_26abcfa7372080 1-104
+scripts/verify.mjs
+  s_d5d6c727d81aef::t_a063c3f3e04bef 1-254
+src/server/schema.ts
+  s_d5d6c727d81aef::t_e212276040cba9 169,172
+  s_d5d6c727d81aef::t_153eca0ee1e13d 79-86
+  s_d5d6c727d81aef::t_a7f560f6184c44 96
+test/parsing.test.ts
+  s_d5d6c727d81aef::t_f4f725a2c98247 126-175
+  s_d5d6c727d81aef::t_1ef76db2e7050c 2-7
+README.md
+  s_d5d6c727d81aef::t_1323fb7ff8d1de 163,165,170-171,175,178-181
+  s_d5d6c727d81aef::t_3c9acd8c0d3e41 58,60
+  s_d5d6c727d81aef::t_2cab0c82c713ca 63-84,87-89
+  s_d5d6c727d81aef::t_65211b32118b9a 3-4
+  s_d5d6c727d81aef::t_272992cb2dcc40 13-14,16-20,24-25,27
+  s_d5d6c727d81aef::t_9707a21173ef14 132,134,143-156
+scripts/verify-workflow.mjs
+  s_d5d6c727d81aef::t_a063c3f3e04bef 1-84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "autter_version": "1.6.9",
+  "base_commit_sha": "888ae23751173cbd0778390516fb04725552f350",
+  "branch": "main",
+  "prompts": {
+    "s_d5d6c727d81aef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "034234a2-7056-4b3d-8074-c60758922bb2",
+        "model": "claude-opus-5"
+      },
+      "human_author": "rogerdemello <rogerdemello289@gmail.com>",
+      "messages_url": "cas:a2533892c98fd435eaba3547e98205d1843748d44cba810adcb0c007d1a2543b",
+      "total_additions": 1454,
+      "total_deletions": 325,
+      "accepted_lines": 1277,
+      "overriden_lines": 0
+    }
+  },
+  "sessions": {
+    "s_d5d6c727d81aef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "034234a2-7056-4b3d-8074-c60758922bb2",
+        "model": "claude-opus-5"
+      },
+      "human_author": "rogerdemello <rogerdemello289@gmail.com>",
+      "messages_url": "cas:a2533892c98fd435eaba3547e98205d1843748d44cba810adcb0c007d1a2543b",
+      "stats": {
+        "total_additions": 1454,
+        "total_deletions": 325,
+        "accepted_lines": 1277,
+        "overriden_lines": 0,
+        "files": {
+          "PROMPTS.md": {
+            "total_additions": 75,
+            "total_deletions": 11,
+            "accepted_lines": 75,
+            "overriden_lines": 0
+          },
+          "README.md": {
+            "total_additions": 66,
+            "total_deletions": 22,
+            "accepted_lines": 66,
+            "overriden_lines": 0
+          },
+          "docs/AGENT.md": {
+            "total_additions": 79,
+            "total_deletions": 16,
+            "accepted_lines": 79,
+            "overriden_lines": 0
+          },
+          "docs/ARCHITECTURE.md": {
+            "total_additions": 48,
+            "total_deletions": 6,
+            "accepted_lines": 48,
+            "overriden_lines": 0
+          },
+          "docs/DECISIONS.md": {
+            "total_additions": 73,
+            "total_deletions": 12,
+            "accepted_lines": 73,
+            "overriden_lines": 0
+          },
+          "docs/DEMO.md": {
+            "total_additions": 31,
+            "total_deletions": 15,
+            "accepted_lines": 31,
+            "overriden_lines": 0
+          },
+          "package.json": {
+            "total_additions": 3,
+            "total_deletions": 1,
+            "accepted_lines": 3,
+            "overriden_lines": 0
+          },
+          "scripts/verify-workflow.mjs": {
+            "total_additions": 84,
+            "total_deletions": 0,
+            "accepted_lines": 84,
+            "overriden_lines": 0
+          },
+          "scripts/verify.mjs": {
+            "total_additions": 254,
+            "total_deletions": 0,
+            "accepted_lines": 254,
+            "overriden_lines": 0
+          },
+          "src/server/agent.ts": {
+            "total_additions": 170,
+            "total_deletions": 38,
+            "accepted_lines": 144,
+            "overriden_lines": 0
+          },
+          "src/server/index.ts": {
+            "total_additions": 131,
+            "total_deletions": 131,
+            "accepted_lines": 1,
+            "overriden_lines": 0
+          },
+          "src/server/memory.ts": {
+            "total_additions": 6,
+            "total_deletions": 2,
+            "accepted_lines": 6,
+            "overriden_lines": 0
+          },
+          "src/server/model.ts": {
+            "total_additions": 11,
+            "total_deletions": 2,
+            "accepted_lines": 11,
+            "overriden_lines": 0
+          },
+          "src/server/parsing.ts": {
+            "total_additions": 29,
+            "total_deletions": 0,
+            "accepted_lines": 29,
+            "overriden_lines": 0
+          },
+          "src/server/schema.ts": {
+            "total_additions": 16,
+            "total_deletions": 8,
+            "accepted_lines": 11,
+            "overriden_lines": 0
+          },
+          "src/server/stream-dedupe.ts": {
+            "total_additions": 195,
+            "total_deletions": 16,
+            "accepted_lines": 179,
+            "overriden_lines": 0
+          },
+          "src/server/tools.ts": {
+            "total_additions": 13,
+            "total_deletions": 42,
+            "accepted_lines": 13,
+            "overriden_lines": 0
+          },
+          "test/parsing.test.ts": {
+            "total_additions": 56,
+            "total_deletions": 1,
+            "accepted_lines": 56,
+            "overriden_lines": 0
+          },
+          "test/stream-dedupe.test.ts": {
+            "total_additions": 104,
+            "total_deletions": 0,
+            "accepted_lines": 104,
+            "overriden_lines": 0
+          },
+          "wrangler.jsonc": {
+            "total_additions": 10,
+            "total_deletions": 2,
+            "accepted_lines": 10,
+            "overriden_lines": 0
+          }
+        }
+      }
+    }
+  }
+}
