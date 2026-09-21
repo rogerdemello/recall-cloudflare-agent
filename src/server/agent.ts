@@ -22,6 +22,7 @@ import { generateText, stepCountIs, streamText } from "ai";
 import { GRADE_FORMAT_INSTRUCTION, parseGradeResponse } from "./grading";
 import {
   buildHistory,
+  buildInstructions,
   flagDuplicates,
   indexCards,
   maybeSummarise,
@@ -64,6 +65,16 @@ const REVIEW_CALLBACK = "runReview";
 
 /** Cap on tool-calling rounds per turn — a guard against the model looping. */
 const MAX_STEPS = 5;
+
+/**
+ * Whether the learner actually asked for a deck.
+ *
+ * Gates the `build_deck` tool in code. Llama 3.3 was starting background deck
+ * builds on a plain "teach me about X" however firmly the prompt said not to,
+ * which is slow, costly and not what was asked for.
+ */
+const ASKS_FOR_DECK =
+  /\b(deck|decks|course|curriculum|syllabus|study plan|from scratch)\b/i;
 
 /**
  * Static across every turn, on purpose.
@@ -174,6 +185,9 @@ export class StudyCoach extends Agent<Env, CoachState> implements ToolHost {
             this.sendTo(connection, { type: "review_none" });
           }
           break;
+        case "cards":
+          this.sendCards(connection, parsed.deck);
+          break;
         case "skip_review":
           await this.skipReview();
           break;
@@ -237,25 +251,19 @@ export class StudyCoach extends Agent<Env, CoachState> implements ToolHost {
 
     // Pass 1 — act. Any tools the model wants have already run by the time the
     // learner sees the first token.
-    const findings = await this.runActions();
+    const findings = await this.runActions(userText);
 
     this.emit({ type: "start", id });
-
-    const messages = buildHistory(this);
-    if (findings) {
-      messages.push({
-        role: "system",
-        content: `Results of lookups you just performed. Use them; do not mention that you performed them.\n${findings}`,
-      });
-    }
 
     let full = "";
     try {
       // Pass 2 — stream the reply. No tools here, deliberately.
+      // Findings and the rolling summary go in the system string, never in
+      // `messages` — the SDK rejects a system role there.
       const result = streamText({
         model: chatModel(this.env, this.sessionAffinity),
-        system: SYSTEM_PROMPT,
-        messages,
+        system: buildInstructions(this, SYSTEM_PROMPT, findings),
+        messages: buildHistory(this),
       });
 
       // The provider's delta double-emission is repaired by middleware inside
@@ -273,10 +281,13 @@ export class StudyCoach extends Agent<Env, CoachState> implements ToolHost {
       full = message;
     }
 
-    // A turn that was pure tool calls produces no text. Say *something* rather
-    // than leaving an empty bubble on screen.
+    // A turn can still come back empty. Say something that actually tells the
+    // learner where things stand rather than a bare "Done."
     if (!full.trim()) {
-      full = "Done.";
+      full =
+        this.state.workflow?.status === "running"
+          ? "I'm putting that deck together now — cards will appear on the right as they're written."
+          : "I didn't have anything useful to add there. Ask me again, or tell me what you'd like to cover.";
       this.emit({ type: "token", id, delta: full });
     }
 
@@ -302,13 +313,19 @@ export class StudyCoach extends Agent<Env, CoachState> implements ToolHost {
    *
    * @returns a flat summary of what the tools returned, or "" if none ran.
    */
-  private async runActions(): Promise<string> {
+  private async runActions(userText: string): Promise<string> {
     try {
+      // Deck building is expensive and slow, and the model was starting one on
+      // "teach me about X" despite being told not to. Rather than fight it with
+      // prompt wording, the tool is simply not offered unless the learner's own
+      // words ask for a deck. A capability that isn't present can't be misused.
+      const tools = buildTools(this, { allowDeckBuild: ASKS_FOR_DECK.test(userText) });
+
       const result = await generateText({
         model: chatModel(this.env, this.sessionAffinity),
-        system: ACTION_PROMPT,
+        system: buildInstructions(this, ACTION_PROMPT),
         messages: buildHistory(this),
-        tools: buildTools(this),
+        tools,
         stopWhen: stepCountIs(2),
       });
 
@@ -402,6 +419,7 @@ export class StudyCoach extends Agent<Env, CoachState> implements ToolHost {
 
     this.setState({
       ...this.state,
+      nextReviewAt: null,
       activeReview: {
         cardId: card.id,
         question: card.question,
@@ -577,13 +595,24 @@ export class StudyCoach extends Agent<Env, CoachState> implements ToolHost {
 
     const rows = this.sql<{ t: number | null }>`SELECT MIN(due_at) AS t FROM cards`;
     const nextDue = rows[0]?.t;
-    if (nextDue == null) return;
+    if (nextDue == null) {
+      this.setState({ ...this.state, nextReviewAt: null });
+      return;
+    }
 
     const delaySeconds = Math.max(
       5,
       Math.ceil((nextDue - Date.now()) / 1000),
     );
     await this.schedule(delaySeconds, REVIEW_CALLBACK);
+
+    // Publish the wake-up time so the interface can count down to it. Without
+    // this the agent's most distinctive behaviour — returning on its own — is
+    // invisible until it happens, and a visitor leaves before it does.
+    this.setState({
+      ...this.state,
+      nextReviewAt: Date.now() + delaySeconds * 1000,
+    });
   }
 
   private async clearReviewSchedules(): Promise<void> {
@@ -605,11 +634,16 @@ export class StudyCoach extends Agent<Env, CoachState> implements ToolHost {
    * @returns how many were actually new.
    */
   async saveCards(
-    deck: string,
+    rawDeck: string,
     cards: { question: string; answer: string }[],
     source: "chat" | "deck",
   ): Promise<number> {
     if (cards.length === 0) return 0;
+
+    // Normalise here rather than at each call site: deck names arrive both from
+    // the card extractor (already lowercase) and from a workflow topic (usually
+    // title-case), and "CAP theorem" and "cap theorem" must not become two decks.
+    const deck = rawDeck.trim().toLowerCase().slice(0, 48) || "general";
 
     const duplicates = await flagDuplicates(this.env, this.instanceName, cards);
     const now = Date.now();
@@ -798,6 +832,26 @@ export class StudyCoach extends Agent<Env, CoachState> implements ToolHost {
       streakDays: currentStreak(this),
       reviewsCompleted: countReviews(this),
       memoryMode: memoryMode(this.env),
+      secondsPerDay: this.secondsPerDay,
+    });
+  }
+
+  /** Cards for the deck browser. Fetched on demand — too bulky to sync. */
+  private sendCards(connection: Connection, deck: string | undefined): void {
+    const rows = listCards(this, deck, 200);
+    this.sendTo(connection, {
+      type: "cards",
+      deck: deck ?? null,
+      cards: rows.map((row) => ({
+        id: row.id,
+        deck: row.deck,
+        question: row.question,
+        answer: row.answer,
+        intervalDays: row.interval_days,
+        repetitions: row.repetitions,
+        lapses: row.lapses,
+        dueAt: row.due_at,
+      })),
     });
   }
 

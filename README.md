@@ -10,22 +10,19 @@ their own Durable Object, which holds their conversation, their cards, their rev
 schedule, and their streak — and which can run on its own clock whether or not anyone
 has the page open.
 
-Transcript from an actual verification run:
+![The Recall interface](docs/images/welcome.png)
 
-```
-You    ▸ Teach me about Cloudflare Durable Objects
-Recall ▸ Let's start with the basics. A Durable Object in Cloudflare is
-         essentially a small, isolated piece of code that can store and
-         manage data. Imagine a simple counter…
-         · Saved 3 cards to "cloudflare durable objects"   ← you never asked
+The panel on the right is the point. **The agent's clock counts down to the moment
+it will wake itself up and quiz you** — the one genuinely surprising thing this
+does, and the one you'd otherwise miss by closing the tab too early.
 
-  … 45 seconds pass, nobody types anything …
+Forty-five seconds after the lesson, with nobody typing:
 
-Recall ▸ REVIEW · cloudflare durable objects
-         What is a Durable Object in Cloudflare?
-You    ▸ only one instance runs at a time, so no races
-Recall ▸ grade 3/5 · next in 1 day
-```
+![The agent quizzing unprompted](docs/images/review.png)
+
+Nothing in the browser polled for that. A Durable Object alarm fired, the agent
+picked its most overdue card and pushed it down the socket. It would have fired
+with the tab closed.
 
 ---
 
@@ -154,6 +151,29 @@ repaired by middleware; tool arguments cannot be, because the provider assembles
 internally before anything reaches the stream. So tools run through `generateText` (where
 they work) and the visible reply streams through `streamText` (where it's clean). Full
 reproduction in [`src/server/stream-dedupe.ts`](src/server/stream-dedupe.ts).
+
+## The interface
+
+Dark by default, light when your OS asks for it, with a toggle either way.
+
+![Light theme](docs/images/light.png)
+
+A few deliberate choices:
+
+- **The countdown is the hero.** Everything else in the panel is a number; that
+  one creates anticipation. A visitor who can see "next review in 0:38" waits for
+  it. A visitor who can't, leaves.
+- **The agent narrates itself.** Searching memory, mining cards, each workflow
+  step — all of it surfaces in an activity log, so the machinery is legible
+  instead of implied.
+- **Decks are browsable.** Click one and the actual cards slide out, each tagged
+  by stage (unseen / learning / learned / due) so SM-2's effect is visible rather
+  than described.
+- **The compressed clock is stated, not hidden.** The panel says outright that a
+  demo "day" is 30 seconds, because showing a "6 day" interval that elapses in
+  three minutes without explanation would be a small lie.
+- **Zero external requests.** No webfonts, no CDNs — a bookish `ui-serif` display
+  paired with the system sans, and `ui-monospace` with tabular figures for data.
 
 ## Layout
 

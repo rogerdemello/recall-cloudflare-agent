@@ -46,6 +46,19 @@ export interface ActiveReview {
   revealed: boolean;
 }
 
+/** One card, as shown when browsing a deck. */
+export interface CardView {
+  id: string;
+  deck: string;
+  question: string;
+  answer: string;
+  /** Current SM-2 interval. 0 means never successfully recalled. */
+  intervalDays: number;
+  repetitions: number;
+  lapses: number;
+  dueAt: number;
+}
+
 /**
  * Agent state, auto-synced to every connected client on change.
  *
@@ -65,6 +78,20 @@ export interface CoachState {
   memoryMode: "vector" | "sql";
   /** True while the model is generating, so the UI can disable the composer. */
   thinking: boolean;
+  /**
+   * When the agent will next wake itself to quiz, as an epoch timestamp.
+   *
+   * The UI counts down to this. It is the single most surprising property of
+   * the product — the agent comes back on its own — and it is invisible unless
+   * the interface says so out loud.
+   */
+  nextReviewAt: number | null;
+  /**
+   * Real seconds per SM-2 "day". 86400 is true time; the demo compresses it.
+   * Sent to the client so the interface can be honest about the clock rather
+   * than quietly showing implausible intervals.
+   */
+  secondsPerDay: number;
 }
 
 export const INITIAL_COACH_STATE: CoachState = {
@@ -78,6 +105,8 @@ export const INITIAL_COACH_STATE: CoachState = {
   workflow: null,
   memoryMode: "vector",
   thinking: false,
+  nextReviewAt: null,
+  secondsPerDay: 30,
 };
 
 /** Browser → Worker. */
@@ -87,6 +116,8 @@ export type ClientMessage =
   | { type: "skip_review" }
   | { type: "reveal_answer" }
   | { type: "start_review" }
+  /** Browse a deck. Cards are bulk data, so they're fetched rather than synced. */
+  | { type: "cards"; deck?: string }
   | { type: "reset" };
 
 /** Worker → browser. */
@@ -115,4 +146,6 @@ export type ServerMessage =
     }
   /** Nothing was due when a review was requested. */
   | { type: "review_none" }
+  /** Cards for a browsed deck. */
+  | { type: "cards"; deck: string | null; cards: CardView[] }
   | { type: "error"; message: string };

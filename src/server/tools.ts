@@ -52,7 +52,55 @@ export interface ToolHost {
   announceTool(name: string, label: string): void;
 }
 
-export function buildTools(host: ToolHost) {
+export interface ToolOptions {
+  /**
+   * Offer `build_deck` at all. Gated by the caller on the learner's own
+   * wording, because the model starts deck builds unbidden otherwise.
+   */
+  allowDeckBuild?: boolean;
+}
+
+export function buildTools(host: ToolHost, options: ToolOptions = {}) {
+  const always = alwaysOnTools(host);
+
+  // Returning one of two concrete shapes, rather than spreading a possibly-empty
+  // object, keeps `build_deck` from being inferred as `Tool | undefined` — which
+  // the AI SDK's ToolSet index signature rejects.
+  if (!options.allowDeckBuild) return always;
+
+  return {
+    ...always,
+    build_deck: tool({
+      description:
+        "Generate a full study deck on a topic as a background job. The " +
+        "learner has explicitly asked for a deck or a course.",
+      inputSchema: z.object({
+        topic: z.string().describe("The subject to build a deck for"),
+        card_count: z
+          .number()
+          .int()
+          .min(5)
+          .max(40)
+          .default(20)
+          .describe("Roughly how many cards to aim for"),
+      }),
+      execute: async ({ topic, card_count }) => {
+        host.announceTool("build_deck", `Building a deck on "${topic}"`);
+        const workflowId = await host.startDeckBuild(topic, card_count);
+        return {
+          started: true,
+          workflowId,
+          note:
+            "The deck is being built in the background and cards will appear " +
+            "as they are generated. Tell the learner it is underway; do not " +
+            "list cards yourself.",
+        };
+      },
+    }),
+  };
+}
+
+function alwaysOnTools(host: ToolHost) {
   return {
     search_memory: tool({
       description:
@@ -76,36 +124,6 @@ export function buildTools(host: ToolHost) {
             question: h.question,
             answer: h.answer,
           })),
-        };
-      },
-    }),
-
-    build_deck: tool({
-      description:
-        "Generate a full study deck on a topic as a background job. Use this " +
-        "only when the learner explicitly asks for a deck, a course, or to " +
-        "study a broad topic from scratch. For ordinary teaching, explain the " +
-        "concept yourself and use add_cards instead.",
-      inputSchema: z.object({
-        topic: z.string().describe("The subject to build a deck for"),
-        card_count: z
-          .number()
-          .int()
-          .min(5)
-          .max(40)
-          .default(20)
-          .describe("Roughly how many cards to aim for"),
-      }),
-      execute: async ({ topic, card_count }) => {
-        host.announceTool("build_deck", `Building a deck on "${topic}"`);
-        const workflowId = await host.startDeckBuild(topic, card_count);
-        return {
-          started: true,
-          workflowId,
-          note:
-            "The deck is being built in the background and cards will appear " +
-            "as they are generated. Tell the learner it is underway; do not " +
-            "list cards yourself.",
         };
       },
     }),

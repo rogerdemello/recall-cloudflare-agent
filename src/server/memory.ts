@@ -295,23 +295,17 @@ export async function maybeSummarise(
 }
 
 /**
- * Assemble the message list sent to the model.
+ * The verbatim tail of the conversation.
  *
- * Order matters: durable notes first (stable across turns, so the prefix cache
- * can hit), then the verbatim tail. Trimmed to a token budget from the newest
- * end backwards, so the most recent turn is never the one that gets dropped.
+ * **Only user and assistant turns.** The AI SDK rejects a `system` role inside
+ * `messages` outright (`AI_InvalidPromptError`), so durable notes travel in the
+ * system string instead — see `buildInstructions`. Getting this wrong fails the
+ * whole turn, and it fails at the provider, not at typecheck.
+ *
+ * Trimmed to a token budget from the newest end backwards, so the most recent
+ * turn is never the one that gets dropped.
  */
 export function buildHistory(host: SqlHost): ModelMessage[] {
-  const messages: ModelMessage[] = [];
-
-  const summary = storedSummary(host);
-  if (summary) {
-    messages.push({
-      role: "system",
-      content: `Notes from earlier sessions with this learner:\n${summary}`,
-    });
-  }
-
   const recent = recentMessages(host, VERBATIM_TURNS);
   let budget = HISTORY_TOKEN_BUDGET;
   const kept: ModelMessage[] = [];
@@ -327,5 +321,32 @@ export function buildHistory(host: SqlHost): ModelMessage[] {
     });
   }
 
-  return [...messages, ...kept];
+  return kept;
+}
+
+/**
+ * Compose the system string: static prompt first, dynamic context after.
+ *
+ * Order is deliberate. The stable prompt leads so the KV prefix cache still
+ * hits on it across turns; anything that varies — the rolling summary, results
+ * from the action pass — is appended behind it.
+ */
+export function buildInstructions(
+  host: SqlHost,
+  basePrompt: string,
+  findings?: string,
+): string {
+  const parts = [basePrompt];
+
+  const summary = storedSummary(host);
+  if (summary) {
+    parts.push(`Notes from earlier sessions with this learner:\n${summary}`);
+  }
+  if (findings) {
+    parts.push(
+      `Results of lookups you just performed. Use them; do not mention that you performed them.\n${findings}`,
+    );
+  }
+
+  return parts.join("\n\n");
 }

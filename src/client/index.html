@@ -3,124 +3,185 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Recall — study coach</title>
+    <title>Recall — a study coach that comes back to you</title>
     <meta
       name="description"
-      content="A spaced-repetition study coach built on the Cloudflare Agents SDK."
+      content="Teach it something and it writes the flashcards, then wakes itself up to quiz you. Built on the Cloudflare Agents SDK."
     />
+    <meta name="color-scheme" content="dark light" />
     <link rel="stylesheet" href="./styles.css" />
     <link
       rel="icon"
-      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='9' fill='%23d4a04a'/></svg>"
     />
   </head>
   <body>
     <div class="app" id="app">
-      <header>
-        <div class="brand">
+      <header class="head">
+        <div class="wordmark">
           <span class="dot"></span>
           Recall
-          <small>study coach</small>
+          <span class="sub">study coach</span>
         </div>
-        <div class="header-right">
-          <span class="badge" id="memory-badge">memory</span>
-          <span class="badge" id="status">connecting…</span>
+        <div class="head-actions">
+          <span class="chip" id="memory-chip">semantic memory</span>
+          <span class="chip" id="status"><i class="led"></i>connecting</span>
+          <button class="icon-btn" id="theme" title="Switch theme" aria-label="Switch theme">
+            ◐
+          </button>
         </div>
       </header>
 
-      <main class="chat" id="chat">
-        <div class="empty" id="empty">
-          <h2>What shall we study?</h2>
-          <p>
-            Teach me what you want to learn and I'll turn it into flashcards,
-            then quiz you on them later — without being asked.
-          </p>
-          <div class="suggestions">
-            <button data-prompt="Teach me about Cloudflare Durable Objects">
-              Teach me about Cloudflare Durable Objects
-            </button>
-            <button data-prompt="Build me a deck on the CAP theorem">
-              Build me a deck on the CAP theorem
-            </button>
-            <button data-prompt="Explain how spaced repetition actually works">
-              Explain how spaced repetition actually works
-            </button>
+      <main class="stage">
+        <div class="thread" id="thread">
+          <div class="welcome" id="welcome">
+            <h1>Teach me something. I'll test you on it <em>later</em>.</h1>
+            <p>
+              Not a chatbot with a quiz button. Explain something to me, or ask
+              me to explain it to you — the flashcards write themselves, and I
+              come back on my own to check whether it stuck.
+            </p>
+
+            <ol class="loop">
+              <li>
+                <span class="step">01</span>
+                <span><b>You talk to me</b> <span class="aside">— about anything you want to learn</span></span>
+              </li>
+              <li>
+                <span class="step">02</span>
+                <span><b>I write the cards</b> <span class="aside">— quietly, from what we just covered</span></span>
+              </li>
+              <li>
+                <span class="step">03</span>
+                <span><b>I come back and ask</b> <span class="aside">— unprompted, on a schedule</span></span>
+              </li>
+            </ol>
+
+            <div class="starters">
+              <button data-prompt="Teach me about Cloudflare Durable Objects">
+                Teach me about Cloudflare Durable Objects
+              </button>
+              <button data-prompt="Build me a deck on the CAP theorem">
+                Build me a deck on the CAP theorem
+                <span>— runs a background workflow</span>
+              </button>
+              <button data-prompt="Explain how spaced repetition actually works">
+                Explain how spaced repetition actually works
+              </button>
+            </div>
+
+            <footer>
+              Send anything and watch the clock on the right. The whole loop
+              takes about a minute.
+            </footer>
           </div>
+        </div>
+
+        <div class="composer">
+          <div class="answering">
+            <span class="eyebrow">Answering</span>
+            <span id="answer-deck"></span>
+            <span class="spacer"></span>
+            <button class="link" id="reveal">Show me</button>
+            <button class="link" id="skip">Skip</button>
+          </div>
+          <div class="inputs">
+            <textarea
+              id="input"
+              rows="1"
+              placeholder="Ask me to teach you something…"
+              autocomplete="off"
+              aria-label="Message"
+            ></textarea>
+            <button class="btn square" id="mic" title="Speak" aria-label="Record voice">
+              ●
+            </button>
+            <button class="btn primary" id="send">Send</button>
+          </div>
+          <p class="hint" id="hint"></p>
         </div>
       </main>
 
-      <aside class="side">
+      <aside class="panel">
         <section>
-          <h3>Progress</h3>
-          <div class="stats">
+          <h2>The agent's clock</h2>
+          <div class="clock idle" id="clock">
+            <span class="eyebrow" id="clock-label">Nothing scheduled</span>
+            <div class="time" id="clock-time">Teach me something first.</div>
+            <div class="drain" id="drain" hidden><i style="width: 100%"></i></div>
+            <p id="clock-note">
+              Once you do, I'll set my own alarm and come back to quiz you.
+            </p>
+          </div>
+        </section>
+
+        <section>
+          <h2>Progress</h2>
+          <div class="grid2">
             <div class="stat">
-              <div class="n" id="stat-cards">0</div>
+              <div class="v num" id="s-cards">0</div>
               <div class="k">cards</div>
             </div>
-            <div class="stat due">
-              <div class="n" id="stat-due">0</div>
+            <div class="stat due" id="stat-due" data-zero="true">
+              <div class="v num" id="s-due">0</div>
               <div class="k">due now</div>
             </div>
             <div class="stat">
-              <div class="n" id="stat-reviews">0</div>
+              <div class="v num" id="s-reviews">0</div>
               <div class="k">reviews</div>
             </div>
             <div class="stat">
-              <div class="n" id="stat-streak">0</div>
+              <div class="v num" id="s-streak">0</div>
               <div class="k">day streak</div>
             </div>
           </div>
-          <div class="meter" title="Mean progress toward the 21-day interval">
-            <i id="mastery-bar" style="width: 0%"></i>
+          <div class="mastery-row">
+            <div class="bar" title="Mean progress toward a 21-day interval">
+              <i id="mastery-bar" style="width: 0%"></i>
+            </div>
+            <span class="num" id="mastery-pct">0%</span>
           </div>
-          <p class="muted-note" style="margin-top: 6px">
-            <span id="mastery-label">0%</span> mastered
-          </p>
         </section>
 
-        <section id="workflow-section" hidden>
-          <h3>Deck build</h3>
-          <div class="workflow" id="workflow">
-            <span class="label" id="workflow-label">Starting…</span>
-            <div class="meter"><i id="workflow-bar" style="width: 0%"></i></div>
+        <section id="wf-section" hidden>
+          <h2>Deck build</h2>
+          <div class="wf" id="wf">
+            <span class="lbl" id="wf-label">Starting…</span>
+            <div class="bar"><i id="wf-bar" style="width: 0%"></i></div>
           </div>
         </section>
 
         <section>
-          <h3>Decks</h3>
+          <h2>Decks</h2>
           <div id="decks">
-            <p class="muted-note">No cards yet.</p>
+            <p class="empty-note">Nothing yet — they appear as we talk.</p>
+          </div>
+        </section>
+
+        <section>
+          <h2>What I'm doing</h2>
+          <div class="log" id="log">
+            <p class="empty-note">Idle.</p>
           </div>
         </section>
 
         <footer>
-          <button class="linkish" id="reset">Reset this learner</button>
+          <p id="clock-scale"></p>
+          <button class="link" id="reset" style="align-self: flex-start">
+            Start over
+          </button>
         </footer>
       </aside>
-
-      <div class="composer">
-        <div class="review-bar">
-          <strong>Reviewing</strong>
-          <span id="review-deck"></span>
-          <span class="spacer"></span>
-          <button class="linkish" id="reveal">Show answer</button>
-          <button class="linkish" id="skip">Skip</button>
-        </div>
-        <div class="input-row">
-          <textarea
-            id="input"
-            rows="1"
-            placeholder="Ask me to teach you something…"
-            autocomplete="off"
-          ></textarea>
-          <button class="icon" id="mic" title="Hold to speak" aria-label="Record voice">
-            🎙
-          </button>
-          <button class="send" id="send">Send</button>
-        </div>
-        <p class="hint" id="hint"></p>
-      </div>
     </div>
+
+    <div class="scrim" id="scrim"></div>
+    <aside class="drawer" id="drawer" aria-hidden="true">
+      <header>
+        <h3 id="drawer-title">Deck</h3>
+        <button class="icon-btn" id="drawer-close" aria-label="Close">✕</button>
+      </header>
+      <div class="body" id="drawer-body"></div>
+    </aside>
 
     <script type="module" src="./app.ts"></script>
   </body>
